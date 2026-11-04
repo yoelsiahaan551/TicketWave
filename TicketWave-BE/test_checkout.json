@@ -1,0 +1,8 @@
+{
+  "event_id": 1,
+  "ticket_type_id": 2,
+  "quantity": 2,
+  "buyer_name": "John Doe",
+  "buyer_email": "john@example.com",
+  "buyer_phone": "081234567890"
+}

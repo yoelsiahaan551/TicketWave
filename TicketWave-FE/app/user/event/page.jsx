@@ -1,121 +1,278 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import EventCard from "@/app/components/user/EventCard";
 import EventFilter from "@/app/components/user/EventFilter";
 import EmptyState from "@/app/components/user/EmptyState";
-import { EVENTS, KATEGORI_EVENT, hargaMulaiDari } from "@/app/lib/events";
-import { SearchX } from "lucide-react";
+import { SearchX, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import api from "@/app/lib/api";
 
-// ============================================================
-// DAFTAR EVENT — /user/event
-// Pencarian nama, filter kategori, filter lokasi, sorting.
-// Data berasal dari app/lib/events.js (data contoh, belum ada
-// backend). Saat backend siap: ganti sumber EVENTS dengan fetch
-// GET /api/events?search=&kategori=&lokasi=&sort=.
-// ============================================================
+function EventListContent() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("search") || "";
+  // Parameter dari search box Landing Page (Hero) / tombol "View All"
+  const initialCity = searchParams.get("city") || "Semua";
+  const initialDateFrom = searchParams.get("date_from") || "";
 
-export default function EventListPage() {
-  const [search, setSearch] = useState("");
+  const [events, setEvents] = useState([]);
+  const [cities, setCities] = useState(
+    initialCity !== "Semua" ? ["Semua", initialCity] : ["Semua"]
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [search, setSearch] = useState(initialQuery);
   const [kategori, setKategori] = useState("Semua");
-  const [lokasi, setLokasi] = useState("Semua");
+  const [lokasi, setLokasi] = useState(initialCity);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState("");
   const [urutan, setUrutan] = useState("terdekat");
-  const [tampil, setTampil] = useState(6);
 
-  const daftarLokasi = useMemo(() => {
-    const set = new Set(EVENTS.map((e) => e.lokasi));
-    return ["Semua", ...Array.from(set)];
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
+  const KATEGORI_EVENT = ["Semua", "Single", "Festival"];
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .get("/public/events/cities")
+      .then((response) => {
+        if (!ignore && response.data?.cities) {
+          setCities(["Semua", ...response.data.cities]);
+        }
+      })
+      .catch(() => {
+        if (!ignore) setCities(["Semua"]);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const hasil = useMemo(() => {
-    let data = EVENTS.filter((e) => {
-      const cocokNama = e.nama.toLowerCase().includes(search.toLowerCase());
-      const cocokKategori =
-        kategori === "Semua" || e.kategori === kategori;
-      const cocokLokasi = lokasi === "Semua" || e.lokasi === lokasi;
-      return cocokNama && cocokKategori && cocokLokasi;
-    });
+  const fetchEvents = async () => {
+    await Promise.resolve();
+    setLoading(true);
+    setError(null);
 
-    data = [...data].sort((a, b) => {
-      if (urutan === "terdekat")
-        return new Date(a.tanggal) - new Date(b.tanggal);
-      if (urutan === "termurah")
-        return hargaMulaiDari(a) - hargaMulaiDari(b);
-      if (urutan === "termahal")
-        return hargaMulaiDari(b) - hargaMulaiDari(a);
-      if (urutan === "nama") return a.nama.localeCompare(b.nama);
-      return 0;
-    });
+    const params = {
+      page,
+      per_page: 12,
+    };
 
-    return data;
-  }, [search, kategori, lokasi, urutan]);
+    if (search.trim()) params.search = search.trim();
+    if (kategori !== "Semua") params.event_type = kategori.toLowerCase();
+    if (lokasi !== "Semua") params.city = lokasi;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
 
-  const tampilData = hasil.slice(0, tampil);
+    try {
+      const response = await api.get("/public/events", params);
+      let items = response.data?.items || [];
+
+      items = [...items].sort((a, b) => {
+        if (urutan === "terdekat") {
+          return new Date(a.event_date || 0) - new Date(b.event_date || 0);
+        }
+        if (urutan === "termurah") {
+          return (a.price_from || 0) - (b.price_from || 0);
+        }
+        if (urutan === "termahal") {
+          return (b.price_from || 0) - (a.price_from || 0);
+        }
+        if (urutan === "nama") {
+          return (a.name || "").localeCompare(b.name || "");
+        }
+        return 0;
+      });
+
+      setEvents(items);
+      setTotalPages(response.data?.total_pages || 1);
+      setTotalItems(response.data?.total_items ?? items.length);
+    } catch (err) {
+      setError(err.message || "Gagal memuat katalog event.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetchEvents();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, kategori, lokasi, dateFrom, dateTo, urutan, page]);
+
+  const handleResetFilters = () => {
+    setSearch("");
+    setKategori("Semua");
+    setLokasi("Semua");
+    setDateFrom("");
+    setDateTo("");
+    setUrutan("terdekat");
+    setPage(1);
+  };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
+    <div className="mx-auto max-w-7xl px-6 py-12 transition-colors">
       {/* Header */}
       <div className="mb-8">
-        <span className="text-sm font-bold uppercase tracking-wider text-cyan-600">
-          Jelajahi
+        <span className="text-xs font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
+          Katalog Resmi TicketWave
         </span>
-        <h1 className="mt-2 text-3xl font-black text-slate-900 md:text-4xl">
-          Semua Event
+        <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+          Jelajahi Semua Event
         </h1>
-        <p className="mt-3 max-w-xl leading-7 text-slate-500">
-          Temukan konser, festival, dan event menarik lainnya.
-          Saring berdasarkan kategori, lokasi, dan urutan.
+        <p className="mt-3 max-w-2xl leading-7 text-slate-500 dark:text-slate-400">
+          Temukan konser tunggal maupun festival multi-hari yang sedang berstatus{" "}
+          <span className="font-semibold text-slate-700 dark:text-slate-300">On Sale</span>.
+          Saring berdasarkan tipe event, kota penyelenggaraan, atau rentang tanggal.
         </p>
       </div>
 
       {/* Filter */}
       <EventFilter
         search={search}
-        onSearch={setSearch}
+        onSearch={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
         kategori={kategori}
-        onKategori={setKategori}
+        onKategori={(val) => {
+          setKategori(val);
+          setPage(1);
+        }}
         daftarKategori={KATEGORI_EVENT}
         lokasi={lokasi}
-        onLokasi={setLokasi}
-        daftarLokasi={daftarLokasi}
+        onLokasi={(val) => {
+          setLokasi(val);
+          setPage(1);
+        }}
+        daftarLokasi={cities}
+        dateFrom={dateFrom}
+        onDateFrom={(val) => {
+          setDateFrom(val);
+          setPage(1);
+        }}
+        dateTo={dateTo}
+        onDateTo={(val) => {
+          setDateTo(val);
+          setPage(1);
+        }}
         urutan={urutan}
         onUrutan={setUrutan}
+        onReset={handleResetFilters}
       />
 
       {/* Info jumlah hasil */}
-      <p className="mt-6 text-sm font-semibold text-slate-500">
-        {hasil.length} event ditemukan
-      </p>
+      <div className="mt-6 flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          {loading ? "Memuat event..." : `Menampilkan ${events.length} dari ${totalItems} event aktif`}
+        </p>
+      </div>
 
-      {/* Grid hasil */}
-      {tampilData.length === 0 ? (
-        <div className="mt-6">
-          <EmptyState
-            icon={SearchX}
-            judul="Event tidak ditemukan"
-            deskripsi="Tidak ada event yang cocok dengan pencarian atau filtermu. Coba ubah kata kunci atau reset filter."
-          />
-        </div>
-      ) : (
+      {/* Loading Skeleton */}
+      {loading && (
         <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {tampilData.map((event) => (
-            <EventCard key={event.id} event={event} />
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div
+              key={n}
+              className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div className="h-56 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-5 h-6 w-3/4 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-3 h-4 w-1/2 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-6 h-10 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            </div>
           ))}
         </div>
       )}
 
-      {/* Load more */}
-      {tampil < hasil.length && (
-        <div className="mt-10 flex justify-center">
+      {/* Error State */}
+      {!loading && error && (
+        <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-10 text-center dark:border-red-900/50 dark:bg-red-950/30">
+          <p className="text-lg font-bold text-red-700 dark:text-red-300">
+            Gagal memuat katalog event
+          </p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
           <button
             type="button"
-            onClick={() => setTampil(tampil + 6)}
-            className="rounded-2xl border border-slate-300 bg-white px-8 py-3.5 font-bold text-slate-700 transition hover:border-cyan-500 hover:text-cyan-600"
+            onClick={fetchEvents}
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#0080f2] px-5 py-2.5 text-sm font-bold text-white shadow transition hover:bg-[#0070d4]"
           >
-            Muat Lebih Banyak
+            <RefreshCw size={16} />
+            Coba Lagi
           </button>
         </div>
       )}
+
+      {/* Grid hasil */}
+      {!loading && !error && events.length === 0 && (
+        <div className="mt-6">
+          <EmptyState
+            icon={SearchX}
+            judul="Event tidak ditemukan"
+            deskripsi="Tidak ada event aktif (on_sale) yang cocok dengan pencarian atau filter Anda. Coba ubah kata kunci atau reset filter."
+          />
+        </div>
+      )}
+
+      {!loading && !error && events.length > 0 && (
+        <>
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+              >
+                <ChevronLeft size={16} />
+                Sebelumnya
+              </button>
+
+              <span className="rounded-xl bg-[#0080f2] px-4 py-2.5 text-sm font-bold text-white">
+                Halaman {page} dari {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+              >
+                Berikutnya
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+export default function EventListPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-6 py-12 text-center text-slate-500">
+          Memuat katalog event...
+        </div>
+      }
+    >
+      <EventListContent />
+    </Suspense>
   );
 }

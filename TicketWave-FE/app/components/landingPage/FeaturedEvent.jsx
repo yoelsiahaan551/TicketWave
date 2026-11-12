@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useState, useRef } from "react";
+import Link from "next/link";
 import {
   Calendar,
   Clock,
@@ -7,9 +9,157 @@ import {
   Ticket,
   Star,
   ArrowRight,
+  AlertTriangle,
+  RefreshCw,
+  Info,
+  X,
 } from "lucide-react";
+import api from "@/app/lib/api";
+import { useLandingEvents } from "@/app/components/landingPage/useLandingEvents";
+import {
+  bannerOf,
+  handleImageError,
+  formatRupiah,
+  priceFromOf,
+  effectiveTicketPrice,
+  stockOf,
+  formatEventDate,
+  formatEventTime,
+  isPurchasable,
+  eventTypeLabel,
+} from "@/app/components/landingPage/eventDisplay";
+
+/** Event unggulan = event on_sale terdekat yang sudah punya tanggal (fallback: event pertama). */
+function pickFeatured(events) {
+  if (!events.length) return null;
+  return events.find((e) => e.event_date) || events[0];
+}
 
 export default function FeaturedEvent() {
+  const { events, loading: listLoading, error: listError, retry } = useLandingEvents();
+  const featured = useMemo(() => pickFeatured(events), [events]);
+  const featuredId = featured?.id ?? null;
+
+  // Detail (GET /api/public/events/<id>) untuk kategori tiket, harga aktif & sisa kuota
+  const [detail, setDetail] = useState({ id: null, data: null, error: null });
+  const [bookingNotice, setBookingNotice] = useState(false);
+  const noticeTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    };
+  }, []);
+
+  const handleUnavailableBooking = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBookingNotice(true);
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => {
+      setBookingNotice(false);
+    }, 4500);
+  };
+
+  useEffect(() => {
+    if (!featuredId) return;
+    let ignore = false;
+    api
+      .get(`/public/events/${featuredId}`)
+      .then((res) => {
+        if (!ignore) setDetail({ id: featuredId, data: res?.data || null, error: null });
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setDetail({
+            id: featuredId,
+            data: null,
+            error: err?.message || "Gagal memuat detail tiket.",
+          });
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [featuredId]);
+
+  const detailLoading = Boolean(featuredId) && detail.id !== featuredId;
+  const ticketTypes = detail.id === featuredId ? detail.data?.ticket_types || [] : [];
+
+  const ticketStats = useMemo(() => {
+    if (!ticketTypes.length) return null;
+    const prices = ticketTypes.map(effectiveTicketPrice).filter((p) => p > 0);
+    const remaining = ticketTypes.reduce((sum, t) => sum + stockOf(t), 0);
+    const quota = ticketTypes.reduce((sum, t) => sum + Number(t.quota || 0), 0);
+    const phase = ticketTypes.find((t) => t.active_phase)?.active_phase || null;
+    return {
+      minPrice: prices.length ? Math.min(...prices) : null,
+      remaining,
+      quota,
+      percent: quota > 0 ? Math.round((remaining / quota) * 100) : 0,
+      phase,
+    };
+  }, [ticketTypes]);
+
+  if (listLoading) {
+    return (
+      <section className="py-28 bg-slate-950 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center animate-pulse">
+          <div className="h-[420px] rounded-[35px] bg-slate-800" />
+          <div className="space-y-6">
+            <div className="h-9 w-44 rounded-full bg-slate-800" />
+            <div className="h-16 w-3/4 rounded-2xl bg-slate-800" />
+            <div className="h-24 w-full rounded-2xl bg-slate-800" />
+            <div className="grid grid-cols-2 gap-5">
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="h-28 rounded-2xl bg-slate-800" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (listError || !featured) {
+    return (
+      <section className="py-28 bg-slate-950 overflow-hidden">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <span className="bg-cyan-500/20 text-cyan-300 px-5 py-2 rounded-full">
+            FEATURED EVENT
+          </span>
+          {listError ? (
+            <>
+              <AlertTriangle className="mx-auto mt-10 text-red-400" size={40} />
+              <h2 className="text-3xl font-black text-white mt-5">Event unggulan gagal dimuat</h2>
+              <p className="text-gray-400 mt-4">{listError}</p>
+              <button
+                type="button"
+                onClick={retry}
+                className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-xl hover:scale-105 transition"
+              >
+                <RefreshCw size={18} />
+                Coba Lagi
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-black text-white mt-10">Belum ada event unggulan</h2>
+              <p className="text-gray-400 mt-4">
+                Event unggulan akan tampil setelah ada event yang dibuka penjualannya.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  const title = featured.artist_name || featured.name;
+  const subtitle = featured.artist_name ? featured.name : null;
+  const price = ticketStats?.minPrice ?? priceFromOf(featured);
+  const purchasable = isPurchasable(featured);
+
   return (
     <section className="py-28 bg-slate-950 overflow-hidden">
 
@@ -24,12 +174,13 @@ export default function FeaturedEvent() {
             <div className="absolute inset-0 bg-cyan-500 blur-[120px] opacity-25 rounded-full"></div>
 
             <img
-              src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=1400"
-              alt="Coldplay"
-              className="relative rounded-[35px] shadow-2xl group-hover:scale-105 duration-700 transition"
+              src={bannerOf(featured)}
+              alt={featured.name}
+              onError={handleImageError}
+              className="relative w-full aspect-[4/3] object-cover rounded-[35px] shadow-2xl group-hover:scale-105 duration-700 transition"
             />
 
-            {/* Floating Rating */}
+            {/* Floating Badge (fase harga aktif / tipe event) */}
 
             <div className="absolute top-6 left-6 bg-white rounded-2xl shadow-xl px-5 py-4">
 
@@ -41,29 +192,33 @@ export default function FeaturedEvent() {
                   size={18}
                 />
 
-                <span className="font-bold">
-                  4.9
+                <span className="font-bold capitalize">
+                  {ticketStats?.phase
+                    ? `${String(ticketStats.phase.phase_name).replace(/_/g, " ")} -${ticketStats.phase.discount_percent}%`
+                    : eventTypeLabel(featured)}
                 </span>
 
               </div>
 
               <p className="text-gray-500 text-sm">
-                18K Reviews
+                {featured.city || "Indonesia"}
               </p>
 
             </div>
 
-            {/* Floating Ticket */}
+            {/* Floating Ticket (sisa kuota dari backend) */}
 
-            <div className="absolute bottom-6 right-6 bg-cyan-500 text-white rounded-2xl px-5 py-4 shadow-xl">
+            {ticketStats && (
+              <div className="absolute bottom-6 right-6 bg-cyan-500 text-white rounded-2xl px-5 py-4 shadow-xl">
 
-              <Ticket />
+                <Ticket />
 
-              <h2 className="font-bold mt-2">
-                1,248 Left
-              </h2>
+                <h2 className="font-bold mt-2">
+                  {ticketStats.remaining.toLocaleString("id-ID")} Left
+                </h2>
 
-            </div>
+              </div>
+            )}
 
           </div>
 
@@ -77,23 +232,23 @@ export default function FeaturedEvent() {
 
             </span>
 
-            <h2 className="text-6xl font-black text-white mt-8 leading-tight">
+            <h2 className="text-4xl md:text-6xl font-black text-white mt-8 leading-tight">
 
-              Coldplay
+              {title}
 
-              <span className="block text-cyan-400">
+              {subtitle && (
+                <span className="block text-cyan-400">
 
-                Music Of The Spheres
+                  {subtitle}
 
-              </span>
+                </span>
+              )}
 
             </h2>
 
-            <p className="text-gray-400 mt-8 leading-8">
+            <p className="text-gray-400 mt-8 leading-8 line-clamp-4">
 
-              Experience one of the biggest concerts in the world.
-              Enjoy spectacular visuals, immersive sound,
-              and unforgettable moments together.
+              {featured.description || "Informasi lengkap event tersedia di halaman detail."}
 
             </p>
 
@@ -113,7 +268,7 @@ export default function FeaturedEvent() {
 
                 <h3 className="text-white font-bold">
 
-                  24 August 2026
+                  {formatEventDate(featured, { day: "numeric", month: "long", year: "numeric" })}
 
                 </h3>
 
@@ -131,7 +286,7 @@ export default function FeaturedEvent() {
 
                 <h3 className="text-white font-bold">
 
-                  19:30 WIB
+                  {formatEventTime(featured) || "Menyusul"}
 
                 </h3>
 
@@ -149,7 +304,7 @@ export default function FeaturedEvent() {
 
                 <h3 className="text-white font-bold">
 
-                  JIS Jakarta
+                  {[featured.venue, featured.city].filter(Boolean).join(", ") || "Menyusul"}
 
                 </h3>
 
@@ -167,7 +322,7 @@ export default function FeaturedEvent() {
 
                 <h3 className="text-cyan-400 font-bold text-xl">
 
-                  Rp399.000
+                  {detailLoading ? "Memuat…" : price !== null ? formatRupiah(price) : "Lihat detail"}
 
                 </h3>
 
@@ -175,51 +330,80 @@ export default function FeaturedEvent() {
 
             </div>
 
-            {/* Countdown */}
+            {/* Sisa kuota tiket */}
 
             <div className="mt-10">
 
-              <div className="flex justify-between mb-2">
+              {detailLoading ? (
+                <div className="h-3 rounded-full bg-slate-800 animate-pulse" />
+              ) : detail.error ? (
+                <p className="flex items-center gap-2 text-sm text-red-300">
+                  <AlertTriangle size={16} />
+                  Data kategori tiket gagal dimuat dari server: {detail.error}
+                </p>
+              ) : ticketStats ? (
+                <>
+                  <div className="flex justify-between mb-2">
 
-                <span className="text-gray-400">
+                    <span className="text-gray-400">
 
-                  Ticket Remaining
+                      Ticket Remaining
 
-                </span>
+                    </span>
 
-                <span className="text-cyan-400">
+                    <span className="text-cyan-400">
 
-                  78%
+                      {ticketStats.percent}%
 
-                </span>
+                    </span>
 
-              </div>
+                  </div>
 
-              <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
 
-                <div className="w-[78%] h-full bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-600"
+                      style={{ width: `${ticketStats.percent}%` }}
+                    ></div>
 
-              </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400">Kategori tiket belum tersedia untuk event ini.</p>
+              )}
 
             </div>
 
             {/* BUTTON */}
 
-            <div className="flex gap-5 mt-12">
+            <div className="flex flex-wrap gap-5 mt-12">
 
-              <button className="px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-xl hover:scale-105 transition">
+              {purchasable ? (
+                <button
+                  type="button"
+                  onClick={handleUnavailableBooking}
+                  className="px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-xl hover:scale-105 transition cursor-pointer"
+                >
 
-                Book Ticket
+                  Book Ticket
 
-              </button>
+                </button>
+              ) : (
+                <span className="px-8 py-4 rounded-full bg-slate-800 text-slate-400 font-bold cursor-not-allowed">
+                  Tidak Tersedia
+                </span>
+              )}
 
-              <button className="px-8 py-4 rounded-full border border-slate-700 text-white hover:bg-white hover:text-black transition flex items-center gap-2">
+              <Link
+                href={`/user/event/${featured.id}`}
+                className="px-8 py-4 rounded-full border border-slate-700 text-white hover:bg-white hover:text-black transition flex items-center gap-2"
+              >
 
                 Learn More
 
                 <ArrowRight size={18} />
 
-              </button>
+              </Link>
 
             </div>
 
@@ -228,6 +412,25 @@ export default function FeaturedEvent() {
         </div>
 
       </div>
+
+      {bookingNotice && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-amber-200 bg-slate-900 px-5 py-4 text-sm font-medium text-white shadow-2xl"
+        >
+          <Info size={18} className="shrink-0 text-amber-400" />
+          <span>Fitur pemesanan tiket belum tersedia saat ini.</span>
+          <button
+            type="button"
+            onClick={() => setBookingNotice(false)}
+            aria-label="Tutup notifikasi"
+            className="ml-2 rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
     </section>
   );

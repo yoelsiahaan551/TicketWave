@@ -65,7 +65,7 @@ export default function LoginForm() {
       {/* Login */}
 
       <button
-        className="h-14 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-lg font-bold text-white shadow-xl transition-all duration-300 hover:scale-[1.02]"
+        className="h-14 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-lg font-semibold text-white shadow-xl transition-all duration-300 hover:scale-[1.02]"
       >
         Login
       </button>
@@ -74,11 +74,11 @@ export default function LoginForm() {
 
       <p className="text-center text-slate-700">
 
-        Don't have an account?{" "}
+        Don&apos;t have an account?{" "}
 
         <Link
           href="/register"
-          className="font-bold text-cyan-600"
+          className="font-semibold text-cyan-600"
         >
           Register
         </Link>

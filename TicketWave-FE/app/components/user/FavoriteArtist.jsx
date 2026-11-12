@@ -1,108 +1,148 @@
-import Link from "next/link";
-import { ArrowRight, Heart, Music2 } from "lucide-react";
+"use client";
 
-const artists = [
-  {
-    id: 1,
-    name: "Pamungkas",
-    genre: "Indie Pop",
-    image:
-      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 2,
-    name: "Rich Brian",
-    genre: "Hip Hop",
-    image:
-      "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 3,
-    name: "NIKI",
-    genre: "Pop / R&B",
-    image:
-      "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 4,
-    name: "Tulus",
-    genre: "Pop",
-    image:
-      "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=800&q=80",
-  },
-];
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { ArrowRight, Music2, MapPin, CalendarDays } from "lucide-react";
+import api from "@/app/lib/api";
+
+const FALLBACK_ARTIST_IMAGE =
+  "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80";
 
 export default function FavoriteArtist() {
-  return (
-    <section className="bg-slate-50 py-20">
-      <div className="mx-auto max-w-7xl px-6">
+  const [lineupItems, setLineupItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const fetchArtistLineups = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get("/public/events", {
+          page: 1,
+          per_page: 8,
+        });
+        const events = response.data?.items || [];
+        const mapped = events.map((ev) => ({
+          id: ev.id,
+          artistName:
+            ev.artist_name ||
+            (ev.event_type === "festival"
+              ? `Festival Lineup (${ev.days_count || 1} Hari)`
+              : ev.name),
+          eventName: ev.name,
+          city: ev.city,
+          eventType: ev.event_type === "festival" ? "Festival" : "Single Concert",
+          image: ev.poster_url || ev.banner_url || FALLBACK_ARTIST_IMAGE,
+          eventDate: ev.event_date,
+        }));
+        setLineupItems(mapped.slice(0, 4));
+      } catch {
+        setLineupItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchArtistLineups();
+  }, []);
+
+  return (
+    <section className="bg-slate-50 py-20 transition-colors dark:bg-slate-950">
+      <div className="mx-auto max-w-7xl px-6">
         {/* Header */}
         <div className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-cyan-600">
+            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
               <Music2 size={17} />
-              Popular Artist
+              Featured Lineup &amp; Performers
             </div>
 
-            <h2 className="mt-2 text-3xl font-black text-slate-900 md:text-4xl">
-              Artis Favorit Minggu Ini
+            <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+              Penampil &amp; Lineup Event Aktif
             </h2>
 
-            <p className="mt-3 max-w-xl leading-7 text-slate-500">
-              Temukan artis favoritmu dan jangan lewatkan event mereka
-              yang akan datang.
+            <p className="mt-3 max-w-xl leading-7 text-slate-500 dark:text-slate-400">
+              Artis dan penampil utama dari event yang sedang membuka penjualan tiket di TicketWave.
             </p>
           </div>
 
           <Link
             href="/user/event"
-            className="flex w-fit items-center gap-2 font-bold text-cyan-600 transition hover:text-cyan-700"
+            className="flex w-fit items-center gap-2 font-bold text-[#0080f2] transition hover:text-[#0080f2] dark:text-[#0080f2]"
           >
-            Lihat Semua Event
+            Lihat Katalog Lengkap
             <ArrowRight size={18} />
           </Link>
         </div>
 
-        {/* Artist Grid */}
-        <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
-          {artists.map((artist) => (
-            <div
-              key={artist.id}
-              className="group relative overflow-hidden rounded-3xl bg-white shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-xl"
-            >
-              {/* Image */}
-              <div className="relative aspect-[4/5] overflow-hidden">
-                <img
-                  src={artist.image}
-                  alt={artist.name}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
-                />
+        {loading ? (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4">
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                className="aspect-[4/5] animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800"
+              />
+            ))}
+          </div>
+        ) : lineupItems.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <Music2 size={28} className="mx-auto text-[#0080f2] dark:text-[#0080f2]" />
+            <p className="mt-3 text-base font-bold text-slate-900 dark:text-white">
+              Belum ada lineup artis dari event yang aktif
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Lineup otomatis ditampilkan saat ada event berstatus <code className="font-semibold">on_sale</code>.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {lineupItems.map((item) => (
+              <Link
+                key={item.id}
+                href={`/user/event/${item.id}`}
+                className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900"
+              >
+                <div className="relative aspect-[4/5] overflow-hidden bg-slate-900">
+                  <img
+                    src={item.image}
+                    alt={item.artistName}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                  />
 
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/10 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
 
-                {/* Favorite Button */}
-                <button
-                  type="button"
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-md transition hover:scale-110 hover:text-red-500"
-                >
-                  <Heart size={18} />
-                </button>
+                  <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-900 shadow backdrop-blur">
+                    {item.eventType}
+                  </span>
 
-                {/* Artist Info */}
-                <div className="absolute bottom-0 left-0 w-full p-5">
-                  <p className="text-lg font-black text-white">
-                    {artist.name}
-                  </p>
+                  <div className="absolute bottom-0 left-0 w-full p-5">
+                    <p className="text-lg font-black text-white transition group-hover:text-white/90">
+                      {item.artistName}
+                    </p>
+                    <p className="mt-1 line-clamp-1 text-sm font-medium text-slate-200">
+                      {item.eventName}
+                    </p>
 
-                  <p className="mt-1 text-sm text-slate-300">
-                    {artist.genre}
-                  </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin size={13} className="text-[#0080f2]" />
+                        {item.city}
+                      </span>
+                      {item.eventDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays size={13} className="text-[#0080f2]" />
+                          {new Date(item.eventDate).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

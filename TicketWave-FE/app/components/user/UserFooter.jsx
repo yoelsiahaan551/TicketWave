@@ -17,7 +17,7 @@ export default function UserFooter() {
           {/* Logo + Deskripsi */}
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0080f2]">
                 <Ticket size={22} />
               </div>
               <h2 className="text-2xl font-black">TicketWave</h2>
@@ -34,7 +34,7 @@ export default function UserFooter() {
                   <button
                     key={i}
                     type="button"
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 transition hover:bg-cyan-500"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 transition hover:bg-[#0070d4]"
                   >
                     <Icon size={17} />
                   </button>
@@ -48,27 +48,27 @@ export default function UserFooter() {
             <h3 className="mb-5 text-lg font-bold">Menu</h3>
             <ul className="space-y-3 text-slate-400">
               <li>
-                <Link href="/user/home" className="transition hover:text-cyan-400">
+                <Link href="/user/home" className="transition hover:text-[#0080f2]">
                   Home
                 </Link>
               </li>
               <li>
-                <Link href="/user/event" className="transition hover:text-cyan-400">
+                <Link href="/user/event" className="transition hover:text-[#0080f2]">
                   Event
                 </Link>
               </li>
               <li>
-                <Link href="/user/ticket" className="transition hover:text-cyan-400">
+                <Link href="/user/ticket" className="transition hover:text-[#0080f2]">
                   Tiket Saya
                 </Link>
               </li>
               <li>
-                <Link href="/user/pesanan" className="transition hover:text-cyan-400">
+                <Link href="/user/pesanan" className="transition hover:text-[#0080f2]">
                   Pesanan Saya
                 </Link>
               </li>
               <li>
-                <Link href="/" className="transition hover:text-cyan-400">
+                <Link href="/" className="transition hover:text-[#0080f2]">
                   Halaman Utama
                 </Link>
               </li>
@@ -80,15 +80,15 @@ export default function UserFooter() {
             <h3 className="mb-5 text-lg font-bold">Kontak</h3>
             <ul className="space-y-3 text-slate-400">
               <li className="flex items-center gap-3">
-                <MapPin size={16} className="shrink-0 text-cyan-500" />
+                <MapPin size={16} className="shrink-0 text-[#0080f2]" />
                 Jakarta, Indonesia
               </li>
               <li className="flex items-center gap-3">
-                <Mail size={16} className="shrink-0 text-cyan-500" />
+                <Mail size={16} className="shrink-0 text-[#0080f2]" />
                 support@ticketwave.id
               </li>
               <li className="flex items-center gap-3">
-                <Phone size={16} className="shrink-0 text-cyan-500" />
+                <Phone size={16} className="shrink-0 text-[#0080f2]" />
                 +62 812 3456 7890
               </li>
             </ul>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   MapPin,
@@ -8,8 +11,41 @@ import {
   Ticket,
   Users,
 } from "lucide-react";
+import {
+  useLandingEvents,
+  useLandingCities,
+} from "@/app/components/landingPage/useLandingEvents";
+import {
+  posterOf,
+  handleImageError,
+  formatRupiah,
+  priceFromOf,
+  eventTypeLabel,
+  formatEventDate,
+} from "@/app/components/landingPage/eventDisplay";
 
 export default function Hero() {
+  const router = useRouter();
+  const { events, totalItems, loading, error } = useLandingEvents();
+  const { cities } = useLandingCities();
+
+  const [keyword, setKeyword] = useState("");
+  const [city, setCity] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+
+  const highlight = events[0] || null;
+  const highlightPrice = priceFromOf(highlight);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (keyword.trim()) params.set("search", keyword.trim());
+    if (city) params.set("city", city);
+    if (dateFrom) params.set("date_from", dateFrom);
+    const qs = params.toString();
+    router.push(qs ? `/user/event?${qs}` : "/user/event");
+  };
+
   return (
     <section className="relative overflow-hidden pt-28 min-h-screen">
 
@@ -59,67 +95,87 @@ export default function Hero() {
               exhibitions and unforgettable experiences across Indonesia.
             </p>
 
-            {/* Search Box */}
+            {/* Search Box (diteruskan ke GET /api/public/events lewat /user/event) */}
 
-            <div className="mt-12 rounded-[32px] bg-white/95 backdrop-blur-xl p-5 shadow-[0_25px_60px_rgba(0,0,0,0.25)]">
+            <form
+              onSubmit={handleSearch}
+              className="mt-12 rounded-[32px] bg-white/95 backdrop-blur-xl p-5 shadow-[0_25px_60px_rgba(0,0,0,0.25)]"
+            >
 
               <div className="grid gap-4 lg:grid-cols-4">
 
                 <div className="flex items-center gap-3 rounded-2xl border p-4">
 
-                  <Search className="text-cyan-500" />
+                  <Search className="shrink-0 text-cyan-500" />
 
                   <input
                     type="text"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
                     placeholder="Search Event"
-                    className="w-full outline-none"
+                    aria-label="Cari event atau artis"
+                    className="w-full min-w-0 bg-transparent outline-none"
                   />
 
                 </div>
 
                 <div className="flex items-center gap-3 rounded-2xl border p-4">
 
-                  <MapPin className="text-cyan-500" />
+                  <MapPin className="shrink-0 text-cyan-500" />
 
-                  <input
-                    type="text"
-                    placeholder="Location"
-                    className="w-full outline-none"
-                  />
+                  <select
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    aria-label="Pilih kota"
+                    className="w-full min-w-0 bg-transparent outline-none text-slate-700"
+                  >
+                    <option value="">All Locations</option>
+                    {cities.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
 
                 </div>
 
                 <div className="flex items-center gap-3 rounded-2xl border p-4">
 
-                  <Calendar className="text-cyan-500" />
+                  <Calendar className="shrink-0 text-cyan-500" />
 
                   <input
                     type="date"
-                    className="w-full outline-none"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    aria-label="Tanggal mulai"
+                    className="w-full min-w-0 bg-transparent outline-none"
                   />
 
                 </div>
 
-                <button className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 py-4 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-xl"
+                >
                   Search
                 </button>
 
               </div>
 
-            </div>
+            </form>
 
-            {/* Stats */}
+            {/* Stats (Events & Kota dari backend) */}
 
             <div className="mt-14 flex flex-wrap gap-12">
 
               <div>
 
                 <h2 className="text-4xl font-bold text-white">
-                  10K+
+                  {loading ? "…" : error ? "–" : totalItems}
                 </h2>
 
                 <p className="mt-2 text-slate-400">
-                  Events
+                  Events On Sale
                 </p>
 
               </div>
@@ -127,11 +183,11 @@ export default function Hero() {
               <div>
 
                 <h2 className="text-4xl font-bold text-white">
-                  150K+
+                  {loading ? "…" : cities.length}
                 </h2>
 
                 <p className="mt-2 text-slate-400">
-                  Users
+                  Cities
                 </p>
 
               </div>
@@ -158,7 +214,7 @@ export default function Hero() {
 
             {/* Floating Left */}
 
-            <div className="absolute left-0 top-10 rounded-3xl border border-slate-100 bg-white/95 p-5 shadow-2xl backdrop-blur-xl">
+            <div className="absolute left-0 top-10 z-10 rounded-3xl border border-slate-100 bg-white/95 p-5 shadow-2xl backdrop-blur-xl">
 
               <Users className="mb-3 text-cyan-500" />
 
@@ -172,53 +228,82 @@ export default function Hero() {
 
             </div>
 
-            {/* Main Card */}
+            {/* Main Card — event on sale terdekat dari backend */}
 
             <div className="w-[430px] overflow-hidden rounded-[40px] bg-white shadow-[0_35px_80px_rgba(0,0,0,0.35)] transition-all duration-500 hover:-translate-y-2">
 
-              <img
-                src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=1200"
-                alt="Concert"
-                className="h-72 w-full object-cover"
-              />
+              {loading ? (
+                <div className="animate-pulse">
+                  <div className="h-72 w-full bg-slate-200" />
+                  <div className="p-8 space-y-4">
+                    <div className="h-7 w-28 rounded-full bg-slate-200" />
+                    <div className="h-8 w-3/4 rounded-full bg-slate-200" />
+                    <div className="h-4 w-1/2 rounded-full bg-slate-200" />
+                    <div className="h-16 w-full rounded-2xl bg-slate-200" />
+                  </div>
+                </div>
+              ) : highlight ? (
+                <>
+                  <img
+                    src={posterOf(highlight)}
+                    alt={highlight.name}
+                    onError={handleImageError}
+                    className="h-72 w-full object-cover"
+                  />
 
-              <div className="p-8">
+                  <div className="p-8">
 
-                <span className="rounded-full bg-cyan-100 px-4 py-2 text-sm font-semibold text-cyan-700">
-                  Live Concert
-                </span>
+                    <span className="rounded-full bg-cyan-100 px-4 py-2 text-sm font-semibold text-cyan-700">
+                      {eventTypeLabel(highlight)} • {formatEventDate(highlight)}
+                    </span>
 
-                <h2 className="mt-5 text-3xl font-bold">
-                  Coldplay World Tour
-                </h2>
-
-                <p className="mt-2 text-slate-500">
-                  Jakarta International Stadium
-                </p>
-
-                <div className="mt-8 flex items-center justify-between">
-
-                  <div>
-
-                    <p className="text-slate-400">
-                      Starting From
-                    </p>
-
-                    <h2 className="text-3xl font-bold text-blue-600">
-                      Rp399K
+                    <h2 className="mt-5 text-3xl font-bold line-clamp-2">
+                      {highlight.name}
                     </h2>
 
+                    <p className="mt-2 text-slate-500 line-clamp-1">
+                      {[highlight.venue, highlight.city].filter(Boolean).join(", ")}
+                    </p>
+
+                    <div className="mt-8 flex items-center justify-between">
+
+                      <div>
+
+                        <p className="text-slate-400">
+                          Starting From
+                        </p>
+
+                        <h2 className="text-3xl font-bold text-blue-600">
+                          {highlightPrice !== null ? formatRupiah(highlightPrice) : "Lihat detail"}
+                        </h2>
+
+                      </div>
+
+                      <Link
+                        href={`/user/event/${highlight.id}`}
+                        aria-label={`Lihat detail ${highlight.name}`}
+                        className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white transition hover:scale-110"
+                      >
+
+                        <ArrowRight />
+
+                      </Link>
+
+                    </div>
+
                   </div>
-
-                  <button className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white transition hover:scale-110">
-
-                    <ArrowRight />
-
-                  </button>
-
+                </>
+              ) : (
+                <div className="p-10 text-center">
+                  <Ticket className="mx-auto text-cyan-500" size={40} />
+                  <h2 className="mt-5 text-2xl font-bold">
+                    {error ? "Server event tidak tersedia" : "Belum ada event on sale"}
+                  </h2>
+                  <p className="mt-2 text-slate-500">
+                    {error || "Event akan tampil di sini setelah penjualan dibuka."}
+                  </p>
                 </div>
-
-              </div>
+              )}
 
             </div>
 

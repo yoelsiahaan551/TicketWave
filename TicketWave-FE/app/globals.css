@@ -1,26 +1,212 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  /* TicketWave Global Brand Color Tokens (Referensi: Tombol Pesanan Saya #0080F2) */
+  --tw-brand-primary: #0080f2;
+  --tw-brand-hover: #0070d4;
+  --tw-brand-focus: #0080f2;
+  --tw-brand-accent: #0080f2;
+  --tw-brand-ring: rgba(0, 128, 242, 0.25);
 }
 
 @theme inline {
+  --color-brand: #0080f2;
+  --color-brand-hover: #0070d4;
+  --color-brand-focus: #0080f2;
+  --color-brand-ring: rgba(0, 128, 242, 0.25);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ============================================================
+   DARK MODE PALETTE MAPPINGS
+   Active when .dark class is attached to <html>.
+   Because '/' route removes .dark class, the landing page is
+   completely untouched and unaffected by theme toggling.
+   ============================================================ */
+
+.dark {
+  --background: #090d16;
+  --foreground: #f8fafc;
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
+/* Surfaces */
+.dark .bg-white {
+  background-color: #111827;
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: #090d16;
+}
+
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: #1e293b;
+}
+
+.dark .bg-slate-200 {
+  background-color: #334155;
+}
+
+.dark .bg-white\/95,
+.dark .bg-white\/90,
+.dark .bg-white\/80 {
+  background-color: rgba(17, 24, 39, 0.95);
+}
+
+/* Text */
+.dark .text-slate-900,
+.dark .text-gray-900,
+.dark .text-slate-800,
+.dark .text-gray-800 {
+  color: #f8fafc;
+}
+
+.dark .text-slate-700,
+.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-600,
+.dark .text-gray-600 {
+  color: #94a3b8;
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: #64748b;
+}
+
+/* Borders */
+.dark .border-slate-200,
+.dark .border-gray-200,
+.dark .border-slate-100 {
+  border-color: #1e293b;
+}
+
+.dark .border-slate-300 {
+  border-color: #334155;
+}
+
+/* Hovers */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-50:hover {
+  background-color: #1e293b;
+}
+
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-gray-100:hover {
+  background-color: #1e293b;
+}
+
+.dark .hover\:bg-slate-200:hover {
+  background-color: #334155;
+}
+
+.dark .hover\:border-slate-300:hover {
+  border-color: #475569;
+}
+
+/* Dividers */
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b;
+}
+
+/* Inputs & Form Controls */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+.dark select,
+.dark textarea {
+  background-color: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #0080f2;
+  box-shadow: 0 0 0 2px rgba(0, 128, 242, 0.2);
+  outline: none;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+.dark input:disabled,
+.dark select:disabled,
+.dark textarea:disabled {
+  background-color: #1e293b;
+  color: #64748b;
+  border-color: #334155;
+}
+
+/* Soft Badges */
+.dark .bg-cyan-100 {
+  background-color: rgba(0, 128, 242, 0.16);
+}
+.dark .text-cyan-700 {
+  color: #0080f2;
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(0, 128, 242, 0.16);
+}
+.dark .text-blue-700 {
+  color: #0080f2;
+}
+
+.dark .bg-green-100,
+.dark .bg-emerald-100 {
+  background-color: rgba(34, 197, 94, 0.16);
+}
+.dark .text-green-700,
+.dark .text-emerald-700 {
+  color: #4ade80;
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.16);
+}
+.dark .text-purple-700 {
+  color: #c084fc;
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.16);
+}
+.dark .text-red-700 {
+  color: #f87171;
+}
+
+.dark .bg-yellow-100,
+.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.16);
+}
+.dark .text-yellow-700,
+.dark .text-amber-700 {
+  color: #fbbf24;
 }

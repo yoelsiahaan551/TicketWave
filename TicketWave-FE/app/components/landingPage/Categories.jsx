@@ -314,7 +314,7 @@ export default function Categories() {
           </div>
           <p className="max-w-sm text-sm leading-7" style={{ color: "#A9A7B5" }}>
             Every stub below is a doorway into a different world of live music.
-            Pick a genre, pull a ticket, and see who's playing near you.
+            Pick a genre, pull a ticket, and see who&apos;s playing near you.
           </p>
         </div>
 

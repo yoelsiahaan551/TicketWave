@@ -37,7 +37,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
   };
 
   const inputClass =
-    "w-full rounded-2xl border border-slate-300 px-5 py-3.5 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200";
+    "w-full rounded-2xl border border-slate-300 px-5 py-3.5 text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-2 focus:ring-[#0080f2]/20";
 
   return (
     <form
@@ -113,7 +113,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
       <button
         type="submit"
         disabled={saving}
-        className="mt-7 flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3.5 font-bold text-white shadow-lg shadow-cyan-200 transition hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
+        className="mt-7 flex items-center gap-2 rounded-2xl bg-[#0080f2] px-6 py-3.5 font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
       >
         <Save size={18} />
         {saving ? "Menyimpan..." : "Simpan Perubahan"}

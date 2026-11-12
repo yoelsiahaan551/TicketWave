@@ -78,7 +78,7 @@ export default function Testimonial() {
               </div>
 
               <p className="text-slate-300 leading-8 italic">
-                "{item.review}"
+                &ldquo;{item.review}&rdquo;
               </p>
 
               <div className="flex items-center gap-4 mt-8">

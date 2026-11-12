@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Ticket } from "lucide-react";
+import ThemeToggle from "@/app/components/common/ThemeToggle";
 
 export default function AuthLayout({
   children,
@@ -10,6 +11,10 @@ export default function AuthLayout({
 }) {
   return (
     <section className="relative min-h-screen overflow-hidden">
+      {/* Floating Theme Toggle */}
+      <div className="absolute top-6 right-6 z-30">
+        <ThemeToggle />
+      </div>
 
       {/* Background */}
       <img
@@ -18,153 +23,84 @@ export default function AuthLayout({
         className="absolute inset-0 h-full w-full object-cover"
       />
 
-
       {/* Overlay */}
       <div className="absolute inset-0 bg-slate-950/85" />
 
-
       {/* Blur Effect */}
       <div className="absolute -left-32 -top-32 h-72 w-72 rounded-full bg-cyan-500/20 blur-[120px]" />
-
       <div className="absolute -right-32 bottom-0 h-72 w-72 rounded-full bg-blue-700/20 blur-[120px]" />
-
 
       {/* Content */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-5 py-6">
-
-
         {/* Main Card */}
         <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl lg:grid-cols-2">
-
-
           {/* LEFT SIDE */}
           <div className="hidden lg:flex flex-col justify-center p-10">
-
-
             {/* Logo */}
             <Link
               href="/"
               className="flex items-center gap-3"
             >
-
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600">
-
                 <Ticket
                   size={25}
                   className="text-white"
                 />
-
               </div>
-
 
               <div>
-
-                <h2 className="text-2xl font-black text-white">
+                <h2 className="text-2xl font-bold text-white">
                   TicketWave
                 </h2>
-
-
-                <p className="text-sm text-slate-300">
+                <p className="text-sm font-normal text-slate-300">
                   Discover Amazing Events
                 </p>
-
               </div>
-
             </Link>
-
-
 
             {/* Text */}
             <div className="mt-12">
-
-
-              <span className="rounded-full bg-cyan-500/20 px-4 py-2 text-sm text-cyan-300">
-
+              <span className="rounded-full bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-300">
                 #1 Ticket Platform
-
               </span>
 
-
-
-              <h1 className="mt-6 text-4xl font-black leading-tight text-white">
-
+              <h1 className="mt-6 text-4xl font-bold leading-tight text-white">
                 Book
-
                 <span className="block text-cyan-400">
                   Amazing
                 </span>
-
                 Events
-
               </h1>
 
-
-
-              <p className="mt-5 max-w-sm text-base leading-7 text-slate-300">
-
+              <p className="mt-5 max-w-sm text-base font-normal leading-7 text-slate-300">
                 Temukan konser, festival, olahraga dan berbagai
                 event menarik dalam satu platform.
-
               </p>
-
-
             </div>
-
-
           </div>
 
-
-
-
           {/* RIGHT SIDE */}
-          <div className="relative flex items-center justify-center bg-white">
-
-
+          <div className="relative flex items-center justify-center bg-white dark:bg-slate-900 transition-colors">
             {/* Glow */}
-            <div className="absolute h-64 w-64 rounded-full bg-cyan-300/30 blur-[100px]" />
-
-
+            <div className="absolute h-64 w-64 rounded-full bg-cyan-300/30 dark:bg-cyan-500/10 blur-[100px]" />
 
             {/* Form */}
             <div className="relative z-10 w-full max-w-sm px-8 py-10">
-
-
-              <h2 className="text-3xl font-black text-slate-900">
-
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
                 {title}
-
               </h2>
 
-
-
-              <p className="mt-2 text-sm text-slate-500">
-
+              <p className="mt-2 text-sm font-normal text-slate-500 dark:text-slate-400">
                 {subtitle}
-
               </p>
 
-
-
               <div className="mt-8">
-
                 {children}
-
               </div>
-
-
             </div>
-
-
           </div>
-
-
-
         </div>
-
-
       </div>
-
-
     </section>
   );
 }

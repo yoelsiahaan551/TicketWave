@@ -32,57 +32,57 @@ export default function FAQ() {
   return (
     <section className="py-28 bg-white">
 
-      <div className="max-w-5xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
 
-          <p className="uppercase tracking-[6px] text-cyan-600 font-bold">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             FAQ
           </p>
 
-          <h2 className="text-5xl font-black mt-4 text-slate-900">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mt-1">
             Frequently Asked Questions
           </h2>
 
-          <p className="text-slate-600 mt-6">
+          <p className="text-slate-500 mt-2 text-sm">
             Temukan jawaban dari pertanyaan yang paling sering diajukan.
           </p>
 
         </div>
 
-        <div className="space-y-5">
+        <div className="max-w-3xl mx-auto space-y-3">
 
           {faqData.map((faq, index) => (
 
             <div
               key={index}
-              className="rounded-3xl border border-slate-200 overflow-hidden shadow-sm"
+              className="rounded-xl border border-slate-200/80 overflow-hidden shadow-xs"
             >
 
               <button
                 onClick={() =>
                   setActive(active === index ? -1 : index)
                 }
-                className="w-full flex justify-between items-center p-7 hover:bg-slate-50 transition"
+                className="w-full flex justify-between items-center p-4 sm:p-5 hover:bg-slate-50 transition"
               >
 
-                <h3 className="text-xl font-semibold text-left text-slate-900">
+                <h3 className="text-sm sm:text-base font-semibold text-left text-slate-900">
                   {faq.question}
                 </h3>
 
                 {active === index ? (
-                  <Minus className="text-cyan-600" />
+                  <Minus className="text-slate-900 shrink-0 ml-3" size={18} />
                 ) : (
-                  <Plus className="text-slate-600" />
+                  <Plus className="text-slate-400 shrink-0 ml-3" size={18} />
                 )}
 
               </button>
 
               {active === index && (
 
-                <div className="px-7 pb-7">
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5">
 
-                  <p className="text-slate-700 leading-8">
+                  <p className="text-slate-600 text-sm leading-relaxed">
                     {faq.answer}
                   </p>
 

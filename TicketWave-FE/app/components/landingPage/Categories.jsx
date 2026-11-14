@@ -12,12 +12,12 @@ import {
 } from "lucide-react";
 
 const ACCENT = {
-  pink: "#FF2E6C",
-  cyan: "#2FE6C8",
-  amber: "#FF6B35",
-  violet: "#8C6BFF",
-  gold: "#E8B84B",
-  sage: "#9BD770",
+  primary: "#94a3b8",
+  sky: "#cbd5e1",
+  amber: "#94a3b8",
+  indigo: "#cbd5e1",
+  slate: "#64748b",
+  emerald: "#94a3b8",
 };
 
 const INK = "#0D0D12";
@@ -29,7 +29,7 @@ const categories = [
     total: "126 concerts",
     artist: "BLACKPINK, BTS, IVE",
     icon: Mic2,
-    accent: ACCENT.pink,
+    accent: ACCENT.primary,
     tier: "VIP access",
     code: "KP-0126",
     image:
@@ -40,7 +40,7 @@ const categories = [
     total: "248 concerts",
     artist: "Bruno Mars, Dua Lipa",
     icon: Radio,
-    accent: ACCENT.cyan,
+    accent: ACCENT.sky,
     tier: "VIP access",
     code: "PO-0248",
     image:
@@ -62,7 +62,7 @@ const categories = [
     total: "91 festivals",
     artist: "Martin Garrix, Alan Walker",
     icon: Tent,
-    accent: ACCENT.violet,
+    accent: ACCENT.indigo,
     tier: "General admission",
     code: "ED-0091",
     image:
@@ -73,7 +73,7 @@ const categories = [
     total: "42 live shows",
     artist: "Jakarta Jazz Festival",
     icon: Piano,
-    accent: ACCENT.gold,
+    accent: ACCENT.slate,
     tier: "General admission",
     code: "JZ-0042",
     image:
@@ -84,7 +84,7 @@ const categories = [
     total: "73 concerts",
     artist: "Hindia, Feast, Reality Club",
     icon: Music2,
-    accent: ACCENT.sage,
+    accent: ACCENT.emerald,
     tier: "General admission",
     code: "IN-0073",
     image:
@@ -93,15 +93,15 @@ const categories = [
 ];
 
 const stats = [
-  { value: "10K+", label: "Available events", accent: ACCENT.pink },
-  { value: "150K+", label: "Happy customers", accent: ACCENT.cyan },
-  { value: "120+", label: "Trusted partners", accent: ACCENT.violet },
-  { value: "4.9", label: "User rating", accent: ACCENT.gold },
+  { value: "10K+", label: "Available events", accent: ACCENT.primary },
+  { value: "150K+", label: "Happy customers", accent: ACCENT.sky },
+  { value: "120+", label: "Trusted partners", accent: ACCENT.slate },
+  { value: "4.9", label: "User rating", accent: ACCENT.amber },
 ];
 
 const marqueeItems = categories
   .map((c) => `${c.artist}`)
-  .join("  ✦  ");
+  .join("  •  ");
 
 function Perforation() {
   const dots = new Array(9).fill(0);
@@ -286,21 +286,21 @@ export default function Categories() {
               className="px-6 text-sm uppercase"
               style={{ color: "#8B899A", letterSpacing: "3px", fontFamily: "var(--font-mono)" }}
             >
-              {marqueeItems} &nbsp; ✦ &nbsp;
+              {marqueeItems} &nbsp; • &nbsp;
             </span>
           ))}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-end justify-between flex-wrap gap-6 mb-14">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Ticket size={16} color={ACCENT.pink} />
+              <Ticket size={16} color={ACCENT.primary} />
               <p
                 className="uppercase text-xs"
-                style={{ color: ACCENT.pink, letterSpacing: "4px", fontFamily: "var(--font-mono)" }}
+                style={{ color: ACCENT.primary, letterSpacing: "4px", fontFamily: "var(--font-mono)" }}
               >
                 Now selling
               </p>

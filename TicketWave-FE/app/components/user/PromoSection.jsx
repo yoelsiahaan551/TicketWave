@@ -4,48 +4,48 @@ import { ArrowRight, Sparkles, Ticket, Clock, ShieldCheck } from "lucide-react";
 export default function PromoSection() {
   return (
     <section className="bg-white py-20 transition-colors dark:bg-slate-900/60">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[#0080f2] px-8 py-12 shadow-xl md:px-14 md:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-10 shadow-lg md:px-12 md:py-12">
           {/* Decoration */}
           <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10" />
           <div className="absolute -bottom-32 left-1/2 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
 
-          <div className="relative grid items-center gap-10 lg:grid-cols-[1.3fr_0.7fr]">
+          <div className="relative grid items-center gap-8 lg:grid-cols-[1.3fr_0.7fr]">
             {/* Left Content */}
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
-                <Sparkles size={16} />
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur">
+                <Sparkles size={14} className="text-[#0080f2]" />
                 Fase Harga Otomatis TicketWave
               </div>
 
-              <h2 className="mt-6 max-w-2xl text-3xl font-black leading-tight text-white md:text-5xl">
+              <h2 className="mt-5 max-w-2xl text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight tracking-tight text-white">
                 Hemat Lebih Banyak di Fase
-                <span className="block text-white/90">
+                <span className="block text-[#0080f2]">
                   Early Bird &amp; Presale Resmi
                 </span>
               </h2>
 
-              <p className="mt-5 max-w-xl leading-7 text-white/85">
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/85">
                 Setiap kategori tiket di TicketWave mendukung fase harga{" "}
-                <strong className="font-bold text-white">Early Bird</strong>,{" "}
-                <strong className="font-bold text-white">Presale</strong>, dan{" "}
-                <strong className="font-bold text-white">Normal</strong>. Potongan
+                <strong className="font-semibold text-white">Early Bird</strong>,{" "}
+                <strong className="font-semibold text-white">Presale</strong>, dan{" "}
+                <strong className="font-semibold text-white">Normal</strong>. Potongan
                 harga diterapkan otomatis berdasarkan tanggal aktif fase tanpa perlu
                 memasukkan kode voucher manual.
               </p>
 
-              <div className="mt-8 flex flex-wrap items-center gap-4">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
                   href="/user/event"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-4 font-bold text-[#0080f2] transition hover:scale-[1.03] hover:shadow-lg"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#0080f2] px-5 py-2.5 text-sm font-medium text-white shadow-xs transition hover:bg-[#0070d4]"
                 >
                   Eksplor Event On Sale
-                  <ArrowRight size={19} />
+                  <ArrowRight size={16} />
                 </Link>
 
                 <Link
                   href="/user/pesanan"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-6 py-4 font-bold text-white backdrop-blur transition hover:bg-white/20"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/20"
                 >
                   Lacak Kode Booking
                 </Link>
@@ -54,47 +54,47 @@ export default function PromoSection() {
 
             {/* Phase Info Card */}
             <div className="relative">
-              <div className="mx-auto max-w-sm rounded-3xl border border-white/20 bg-white/10 p-6 backdrop-blur-md">
+              <div className="mx-auto max-w-sm rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-md">
                 <div className="flex items-center justify-between">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#0080f2] shadow">
-                    <Ticket size={28} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#0080f2] shadow-xs">
+                    <Ticket size={22} />
                   </div>
 
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#0080f2]">
+                  <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-900">
                     AUTO PRICING
                   </span>
                 </div>
 
-                <p className="mt-6 text-xs font-bold uppercase tracking-wider text-white/85">
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-white/90">
                   Skema Fase Tiket Resmi
                 </p>
 
-                <div className="mt-3 space-y-2.5">
-                  <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm text-white">
-                    <span className="flex items-center gap-2 font-semibold">
-                      <Clock size={15} className="text-white/90" />
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between rounded-lg bg-white/10 px-3.5 py-2 text-xs text-white">
+                    <span className="flex items-center gap-2 font-medium">
+                      <Clock size={14} className="text-white/90" />
                       Early Bird
                     </span>
-                    <span className="font-black text-white/90">Diskon Fase Awal</span>
+                    <span className="font-semibold text-white/90">Diskon Fase Awal</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm text-white">
-                    <span className="flex items-center gap-2 font-semibold">
-                      <Clock size={15} className="text-white/90" />
+                  <div className="flex items-center justify-between rounded-lg bg-white/10 px-3.5 py-2 text-xs text-white">
+                    <span className="flex items-center gap-2 font-medium">
+                      <Clock size={14} className="text-white/90" />
                       Presale
                     </span>
-                    <span className="font-black text-white/90">Harga Spesial</span>
+                    <span className="font-semibold text-white/90">Harga Spesial</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm text-white">
-                    <span className="flex items-center gap-2 font-semibold">
-                      <ShieldCheck size={15} className="text-white/90" />
+                  <div className="flex items-center justify-between rounded-lg bg-white/10 px-3.5 py-2 text-xs text-white">
+                    <span className="flex items-center gap-2 font-medium">
+                      <ShieldCheck size={14} className="text-white/90" />
                       Normal Phase
                     </span>
-                    <span className="font-black text-white">Harga Reguler</span>
+                    <span className="font-semibold text-white">Harga Reguler</span>
                   </div>
                 </div>
 
-                <div className="mt-5 border-t border-white/20 pt-4 text-xs text-white/85">
-                  Maksimal pembelian <strong className="text-white">10 tiket</strong> per transaksi dengan kode QR unik untuk setiap e-ticket.
+                <div className="mt-4 border-t border-white/20 pt-3 text-xs text-white/85">
+                  Maksimal pembelian <strong className="text-white font-semibold">10 tiket</strong> per transaksi dengan kode QR unik untuk setiap e-ticket.
                 </div>
               </div>
             </div>

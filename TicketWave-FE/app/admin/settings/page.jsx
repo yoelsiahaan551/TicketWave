@@ -63,17 +63,17 @@ export default function AdminSettingsPage() {
   }, [checkSystemStatus]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
             Konfigurasi &amp; Diagnostik
           </span>
-          <h1 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
             Pengaturan Admin &amp; Status Server
           </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Kelola tema antarmuka panel admin dan pantau konektivitas endpoint <code className="font-mono">GET /health</code> secara langsung.
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Kelola tema antarmuka panel admin dan pantau konektivitas server secara langsung.
           </p>
         </div>
 
@@ -81,41 +81,41 @@ export default function AdminSettingsPage() {
           type="button"
           onClick={checkSystemStatus}
           disabled={checking}
-          className="inline-flex w-fit items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:border-[#0080f2] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-xs hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
         >
-          <RefreshCw size={15} className={checking ? "animate-spin" : ""} />
+          <RefreshCw size={13} className={checking ? "animate-spin" : ""} />
           Cek Ulang Koneksi
         </button>
       </div>
 
       {/* Appearance / Theme Settings */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-        <div className="mb-4 flex items-center gap-3">
-          <Palette className="h-5 w-5 text-[#0080f2] dark:text-[#0080f2]" />
-          <h2 className="text-lg font-black text-slate-900 dark:text-white">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="mb-3 flex items-center gap-2.5">
+          <Palette className="h-4 w-4 text-[#0080f2]" />
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             Tema Tampilan Panel Admin
           </h2>
         </div>
-        <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
           Sesuaikan mode tampilan terang atau gelap untuk ruang kerja administrasi Anda.
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => setTheme("light")}
-            className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
+            className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
               !isDark
-                ? "border-[#0080f2] bg-[#0080f2]/10 text-[#0080f2] ring-2 ring-[#0080f2]/20"
-                : "border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
+                ? "border-[#0080f2] ring-1 ring-[#0080f2] bg-blue-50/50 text-[#0080f2] dark:border-[#0080f2]"
+                : "border-slate-200/80 text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
             }`}
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-amber-500 shadow-sm">
-              <Sun size={20} />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#0080f2] shadow-xs dark:border-slate-700 dark:bg-slate-800">
+              <Sun size={18} />
             </div>
             <div>
-              <p className="text-sm font-bold">Mode Terang (Light)</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-semibold">Mode Terang (Light)</p>
+              <p className="text-[11px] opacity-80">
                 Latar cerah dengan kontras tinggi
               </p>
             </div>
@@ -124,18 +124,18 @@ export default function AdminSettingsPage() {
           <button
             type="button"
             onClick={() => setTheme("dark")}
-            className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
+            className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
               isDark
-                ? "border-[#0080f2] bg-[#0080f2]/15 text-white ring-2 ring-[#0080f2]/20"
-                : "border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
+                ? "border-[#0080f2] ring-1 ring-[#0080f2] bg-slate-800 text-white"
+                : "border-slate-200/80 text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
             }`}
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-[#0080f2] shadow-sm">
-              <Moon size={20} />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-300 shadow-xs">
+              <Moon size={18} />
             </div>
             <div>
-              <p className="text-sm font-bold">Mode Gelap (Dark)</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-semibold">Mode Gelap (Dark)</p>
+              <p className="text-[11px] opacity-80">
                 Latar slate gelap yang nyaman di mata
               </p>
             </div>
@@ -144,30 +144,30 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* Admin Profile Card */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <User className="h-5 w-5 text-[#0080f2] dark:text-[#0080f2]" />
-          <h2 className="text-lg font-black text-slate-900 dark:text-white">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <User className="h-4 w-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             Profil Administrator Aktif
           </h2>
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0080f2] text-2xl font-black text-white">
+        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#0080f2] text-base font-semibold text-white shadow-xs">
               {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {user?.name || "Belum Login"}
               </h3>
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <Mail className="h-4 w-4 text-[#0080f2]" />
+              <div className="mt-0.5 flex flex-wrap items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+                <span className="flex items-center gap-1">
+                  <Mail className="h-3.5 w-3.5 text-slate-400" />
                   {user?.email || "-"}
                 </span>
                 {user?.role && (
-                  <span className="rounded-full bg-[#0080f2]/15 px-3 py-0.5 text-xs font-bold uppercase text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]">
+                  <span className="rounded-full bg-blue-50 border border-blue-200/60 px-2 py-0.5 text-[10px] font-medium uppercase text-[#0080f2] dark:bg-blue-950/40 dark:border-blue-900/50 dark:text-blue-300">
                     {user.role}
                   </span>
                 )}
@@ -177,7 +177,7 @@ export default function AdminSettingsPage() {
 
           <Link
             href="/user/settings"
-            className="rounded-xl border border-slate-300 px-5 py-2.5 text-xs font-bold text-slate-700 transition hover:border-[#0080f2] dark:border-slate-700 dark:text-slate-200"
+            className="rounded-xl border border-slate-200/80 px-3.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:text-[#0080f2]"
           >
             Reset Password Akun &rarr;
           </Link>
@@ -185,62 +185,62 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* Live System Health & Database Counts */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <Database className="h-5 w-5 text-[#0080f2] dark:text-[#0080f2]" />
-          <h2 className="text-lg font-black text-slate-900 dark:text-white">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <Database className="h-4 w-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             Diagnostik Sistem &amp; Koneksi Backend
           </h2>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/60">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Status Endpoint GET /health
             </p>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-1.5 flex items-center gap-1.5">
               {health?.status === "ok" || health?.status === "healthy" ? (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">
                     Online ({String(health.status).toUpperCase()})
                   </span>
                 </>
               ) : (
                 <>
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                  <span className="text-lg font-black text-red-600 dark:text-red-400">
-                    {checking ? "Memeriksa..." : "Offline / Unreachable"}
+                  <AlertCircle className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                    {checking ? "Memeriksa..." : "Offline"}
                   </span>
                 </>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/60">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Total Event di Database
             </p>
-            <p className="mt-2 text-2xl font-black text-[#0080f2] dark:text-[#0080f2]">
+            <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
               {totalEvents !== null ? totalEvents : "-"}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/60">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Total Agency di Database
             </p>
-            <p className="mt-2 text-2xl font-black text-[#0080f2] dark:text-[#0080f2]">
+            <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
               {totalAgencies !== null ? totalAgencies : "-"}
             </p>
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          <span className="flex items-center gap-2">
-            <Server size={14} className="text-[#0080f2]" />
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <Server size={13} className="text-slate-400" />
             API Base URL:{" "}
-            <code className="font-mono font-bold text-slate-700 dark:text-slate-200">
+            <code className="font-mono text-[10px] text-slate-700 dark:text-slate-300">
               {process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}
             </code>
           </span>

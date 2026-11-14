@@ -3,6 +3,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/app/lib/api';
+import {
+  isDummyModeEnabled,
+  matchDummyLogin,
+  getStoredDemoSession,
+  setStoredDemoSession,
+  clearDemoSession,
+} from '@/app/lib/dummyAuth';
 
 const AuthContext = createContext(null);
 
@@ -12,6 +19,17 @@ export function AuthProvider({ children }) {
   const router = useRouter();
 
   const fetchCurrentUser = useCallback(async () => {
+    // 1. Cek apakah ada sesi demo lokal aktif (hanya jika mode dummy secara eksplisit aktif)
+    if (isDummyModeEnabled()) {
+      const demoUser = getStoredDemoSession();
+      if (demoUser) {
+        setUser(demoUser);
+        setLoading(false);
+        return demoUser;
+      }
+    }
+
+    // 2. Jika bukan demo session, periksa token backend asli
     const token = api.getAccessToken();
     const refreshToken = api.getRefreshToken();
     if (!token && !refreshToken) {
@@ -22,12 +40,19 @@ export function AuthProvider({ children }) {
 
     try {
       const response = await api.get('/auth/me', {}, { silent: true });
-      if (response && response.success && response.data) {
-        const userData = response.data.user || response.data;
-        api.setStoredUser(userData, api.isPersistentSession());
-        setUser(userData);
-        setLoading(false);
-        return userData;
+      if (response && response.success) {
+        const userData =
+          response.data?.user ||
+          (response.data && typeof response.data === 'object' && response.data.email ? response.data : null) ||
+          response.message?.user ||
+          (response.message && typeof response.message === 'object' && response.message.email ? response.message : null);
+
+        if (userData) {
+          api.setStoredUser(userData, api.isPersistentSession());
+          setUser(userData);
+          setLoading(false);
+          return userData;
+        }
       }
       setUser(null);
       setLoading(false);
@@ -60,49 +85,162 @@ export function AuthProvider({ children }) {
   }, [fetchCurrentUser]);
 
   const login = async (email, password, rememberMe = false) => {
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      
-      if (response.success && response.data) {
-        const { access_token, refresh_token, user: userData } = response.data;
-        
-        // Store tokens (default sessionStorage per-tab; localStorage only if rememberMe=true)
-        api.setAccessToken(access_token, rememberMe);
-        api.setRefreshToken(refresh_token, rememberMe);
-        api.setStoredUser(userData, rememberMe);
-        setUser(userData);
-        setLoading(false);
+    const trimmedEmail = (email || '').trim();
 
-        return { success: true, user: userData };
+    // 1. DUMMY LOGIN HANDLER (Aktif secara default di frontend untuk pengujian lokal)
+    if (isDummyModeEnabled()) {
+      const dummyResult = matchDummyLogin(trimmedEmail, password);
+      if (dummyResult.success) {
+        api.clearTokens(); // Pastikan storage token backend bersih
+        setStoredDemoSession(dummyResult.user, rememberMe);
+        setUser(dummyResult.user);
+        setLoading(false);
+        return { success: true, user: dummyResult.user, isDemo: true };
+      } else {
+        clearDemoSession();
+        setUser(null);
+        setLoading(false);
+        return {
+          success: false,
+          status: dummyResult.status || 400,
+          message: dummyResult.message || "Email atau password yang Anda masukkan salah. Silakan periksa kembali.",
+          isDemo: true,
+        };
+      }
+    }
+
+    // 2. REAL BACKEND AUTHENTICATION (Dapat diaktifkan kembali jika Dummy Mode dinonaktifkan)
+    clearDemoSession(); // Pastikan sesi demo dibersihkan saat login backend asli
+    try {
+      const response = await api.post('/auth/login', { email: trimmedEmail, password });
+      
+      if (response && response.success) {
+        const payload =
+          (response.data && typeof response.data === 'object' && (response.data.access_token || response.data.user))
+            ? response.data
+            : (response.message && typeof response.message === 'object' && (response.message.access_token || response.message.user))
+            ? response.message
+            : response.data || {};
+
+        const access_token = payload.access_token;
+        const refresh_token = payload.refresh_token;
+        const userData = payload.user || (payload.email ? payload : null);
+
+        if (access_token && userData) {
+          // Store tokens (default sessionStorage per-tab; localStorage only if rememberMe=true)
+          api.setAccessToken(access_token, rememberMe);
+          if (refresh_token) {
+            api.setRefreshToken(refresh_token, rememberMe);
+          }
+          api.setStoredUser(userData, rememberMe);
+          setUser(userData);
+          setLoading(false);
+
+          return { success: true, user: userData };
+        }
       }
       
-      return { success: false, message: response.message || 'Login failed' };
+      api.clearTokens();
+      setUser(null);
+      setLoading(false);
+      return {
+        success: false,
+        status: response?.status || 400,
+        message: response?.message || 'Login failed',
+      };
     } catch (error) {
-      return { success: false, message: error.message || 'Login failed' };
+      api.clearTokens();
+      setUser(null);
+      setLoading(false);
+
+      const status = error.status || 500;
+      let userFriendlyMessage = error.message || 'Login failed';
+
+      if (status >= 500) {
+        userFriendlyMessage = 'Terjadi kesalahan pada server (HTTP 500). Backend mengalami masalah internal saat memproses autentikasi. Silakan periksa konfigurasi server atau hubungi administrator.';
+      } else if (status === 401 || (status === 400 && (/invalid email or password/i.test(error.message || '') || /validation failed/i.test(error.message || '')))) {
+        userFriendlyMessage = 'Email atau password yang Anda masukkan salah. Silakan periksa kembali.';
+      } else if (status === 400 && /email dan password harus diisi/i.test(error.message || '')) {
+        userFriendlyMessage = 'Email dan password harus diisi.';
+      }
+
+      return {
+        success: false,
+        status,
+        message: userFriendlyMessage,
+        rawMessage: error.message,
+        errors: error.errors || null,
+      };
     }
   };
 
   const register = async (name, email, phone, password) => {
     try {
-      const response = await api.post('/auth/register', { name, email, phone, password });
+      const trimmedName = (name || '').trim();
+      const trimmedEmail = (email || '').trim();
+      const trimmedPhone = (phone || '').trim();
+
+      const response = await api.post('/auth/register', {
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        password,
+      });
       
-      if (response.success && response.data) {
-        if (typeof window !== 'undefined' && response.data.verification_token) {
-          sessionStorage.setItem('ticketwave_verification_token', response.data.verification_token);
+      if (response && response.success) {
+        const payload =
+          (response.data && typeof response.data === 'object' && (response.data.user || response.data.verification_token))
+            ? response.data
+            : (response.message && typeof response.message === 'object' && (response.message.user || response.message.verification_token))
+            ? response.message
+            : response.data || {};
+
+        if (typeof window !== 'undefined' && payload.verification_token) {
+          sessionStorage.setItem('ticketwave_verification_token', payload.verification_token);
         }
-        // Register does not return tokens, only user data + verification_token
-        // After successful register, auto login (per-tab session)
-        const loginResult = await login(email, password, false);
-        return loginResult;
+
+        const registeredUser = payload.user || payload;
+
+        // Auto login setelah pendaftaran berhasil
+        const loginResult = await login(trimmedEmail, password, false);
+        if (loginResult.success) {
+          return loginResult;
+        }
+
+        return {
+          success: false,
+          registered: true,
+          status: 201,
+          message: 'Akun berhasil didaftarkan! Silakan lakukan login secara manual.',
+          user: registeredUser,
+        };
       }
       
-      return { success: false, message: response.message || 'Registration failed' };
+      return {
+        success: false,
+        status: response?.status || 400,
+        message: response?.message || 'Registration failed',
+      };
     } catch (error) {
-      return { success: false, message: error.message || 'Registration failed' };
+      const status = error.status || 400;
+      let userFriendlyMessage = error.message || 'Registration failed';
+
+      if (status >= 500) {
+        userFriendlyMessage = 'Terjadi kesalahan pada server saat pendaftaran (HTTP 500). Silakan coba beberapa saat lagi.';
+      }
+
+      return {
+        success: false,
+        status,
+        message: userFriendlyMessage,
+        rawMessage: error.message,
+        errors: error.errors || null,
+      };
     }
   };
 
   const logout = useCallback(() => {
+    clearDemoSession();
     api.clearTokens();
     setUser(null);
     router.push('/login');
@@ -119,6 +257,7 @@ export function AuthProvider({ children }) {
     isAdmin: user?.role === 'admin',
     isOfficer: user?.role === 'officer',
     isUser: user?.role === 'user',
+    isDemoSession: !!user?.isDemo,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

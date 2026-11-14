@@ -29,16 +29,16 @@ const STATUS_OPTIONS = [
 ];
 
 const statusStyle = {
-  draft: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  published: "bg-[#0080f2]/15 text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]",
+  draft: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
+  published: "border border-blue-200/60 bg-blue-50 text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300",
   on_sale:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+    "border border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
   sales_closed:
-    "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
-  ongoing: "bg-[#0080f2]/15 text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]",
+    "border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
+  ongoing: "border border-blue-200/60 bg-blue-50 text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300",
   finished:
-    "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300",
-  archived: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300",
+    "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
+  archived: "border border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400",
 };
 
 export default function AdminEventList() {
@@ -149,57 +149,51 @@ export default function AdminEventList() {
   const agencyMap = new Map(agencies.map((a) => [a.id, a.name]));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
             Manajemen Katalog &amp; Lifecycle
           </span>
-          <h1 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
             Event Management
           </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Kelola seluruh event, ubah status penjualan (<code className="font-mono">PATCH /api/events/&lt;id&gt;/status</code>), dan atur fase harga tiket. Total: {totalItems} event.
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Kelola seluruh event, ubah status penjualan, dan atur fase harga tiket. Total: {totalItems} event.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={fetchEvents}
-            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 shadow-sm hover:border-[#0080f2] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+            className="rounded-xl border border-slate-200/80 bg-white p-2.5 text-slate-600 shadow-xs hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
             title="Muat ulang"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
           <Link
             href="/admin/event/create"
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#0080f2] px-6 py-3 font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-105"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-4 py-2 text-xs font-medium text-white shadow-xs transition"
           >
-            <Plus size={19} />
+            <Plus size={16} />
             Buat Event Baru
           </Link>
         </div>
       </div>
 
       {actionMessage && (
-        <div
-          className={`flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold ${
-            actionMessage.type === "error"
-              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-          }`}
-        >
-          <AlertCircle size={18} className="shrink-0" />
+        <div className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-slate-100 p-3.5 text-xs font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          <AlertCircle size={15} className="shrink-0 text-slate-500 dark:text-slate-400" />
           <span>{actionMessage.text}</span>
         </div>
       )}
 
       {/* Filters */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
         <div className="relative">
           <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            size={14}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
             type="text"
@@ -209,14 +203,14 @@ export default function AdminEventList() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-[#0080f2]"
           />
         </div>
 
         <div className="relative">
           <MapPin
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            size={14}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
             type="text"
@@ -226,7 +220,7 @@ export default function AdminEventList() {
               setCityFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-[#0080f2]"
           />
         </div>
 
@@ -236,7 +230,7 @@ export default function AdminEventList() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-[#0080f2]"
         >
           <option value="all">Semua Status</option>
           {STATUS_OPTIONS.map((s) => (
@@ -252,7 +246,7 @@ export default function AdminEventList() {
             setTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-[#0080f2]"
         >
           <option value="all">Semua Tipe Event</option>
           <option value="single">Single Event / Konser</option>
@@ -265,7 +259,7 @@ export default function AdminEventList() {
             setAgencyFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-400 dark:focus:ring-slate-400"
         >
           <option value="all">Semua Agency</option>
           {agencies.map((ag) => (
@@ -277,35 +271,36 @@ export default function AdminEventList() {
       </div>
 
       {error && (
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <div className="rounded-xl border border-slate-300 bg-slate-100 p-4 text-center text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
           {error}
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+      {/* Table & Mobile Card View */}
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-xs">
+            <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:bg-slate-800/40">
               <tr>
-                <th className="px-6 py-4">Event</th>
-                <th className="px-6 py-4">Tipe</th>
-                <th className="px-6 py-4">Jadwal &amp; Kota</th>
-                <th className="px-6 py-4">Agency</th>
-                <th className="px-6 py-4">Status (Ubah Cepat)</th>
-                <th className="px-6 py-4">Aksi</th>
+                <th className="px-4 py-3">Event</th>
+                <th className="px-4 py-3">Tipe</th>
+                <th className="px-4 py-3">Jadwal &amp; Kota</th>
+                <th className="px-4 py-3">Agency</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-400">
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
                     Memuat daftar event...
                   </td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                  <td colSpan={6} className="py-10 text-center text-slate-500">
                     Tidak ada event yang cocok dengan filter ini.
                   </td>
                 </tr>
@@ -313,48 +308,42 @@ export default function AdminEventList() {
                 events.map((event) => (
                   <tr
                     key={event.id}
-                    className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                    className="transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                   >
-                    <td className="px-6 py-4">
-                      <p className="font-black text-slate-900 dark:text-white">
+                    <td className="px-4 py-3.5">
+                      <p className="font-medium text-slate-900 dark:text-white">
                         {event.name}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         {event.artist_name ||
                           (event.event_type === "festival"
                             ? `Festival ${event.days_count || 1} Hari`
                             : `ID #${event.id}`)}
                       </p>
                     </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${
-                          event.event_type === "festival"
-                            ? "bg-[#0080f2]/15 text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]"
-                            : "bg-[#0080f2]/15 text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]"
-                        }`}
-                      >
+                    <td className="px-4 py-3.5">
+                      <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 capitalize dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                         {event.event_type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                      <div className="flex items-center gap-2 text-xs">
-                        <Calendar size={14} className="text-[#0080f2] dark:text-[#0080f2]" />
+                    <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Calendar size={13} className="text-slate-400" />
                         {event.event_date || `Festival ${event.days_count || 1} Hari`}
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs">
-                        <MapPin size={14} className="text-[#0080f2] dark:text-[#0080f2]" />
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <MapPin size={12} />
                         {event.venue}, {event.city}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-300">
                       {agencyMap.get(event.agency_id) || `Agency #${event.agency_id}`}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <select
                         value={event.status}
                         onChange={(e) => handleStatusChange(event.id, e.target.value)}
-                        className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold uppercase outline-none ${
+                        className={`cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-medium uppercase outline-none ${
                           statusStyle[event.status] || statusStyle.draft
                         }`}
                       >
@@ -370,36 +359,36 @@ export default function AdminEventList() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
                         <Link
                           href={`/admin/event/${event.id}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:text-slate-300"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
                           title="Detail & Upload Poster/Banner"
                         >
-                          <Eye size={15} />
+                          <Eye size={14} />
                         </Link>
                         <Link
                           href={`/admin/event/${event.id}/edit`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:text-slate-300"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
                           title="Edit Event"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={14} />
                         </Link>
                         <Link
                           href={`/admin/event/${event.id}/ticket-phase`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:text-slate-300"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
                           title="Kelola Fase Tiket"
                         >
-                          <Ticket size={15} />
+                          <Ticket size={14} />
                         </Link>
                         <button
                           type="button"
                           onClick={() => handleDeleteEvent(event)}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-300 text-red-500 transition hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/30"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
                           title="Hapus Event"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -409,30 +398,131 @@ export default function AdminEventList() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card List View (< md) */}
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+          {loading ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              Memuat daftar event...
+            </div>
+          ) : events.length === 0 ? (
+            <div className="py-10 text-center text-xs text-slate-500">
+              Tidak ada event yang cocok dengan filter ini.
+            </div>
+          ) : (
+            events.map((event) => (
+              <div key={event.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-semibold text-slate-900 dark:text-white">
+                      {event.name}
+                    </h3>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      {event.artist_name ||
+                        (event.event_type === "festival"
+                          ? `Festival ${event.days_count || 1} Hari`
+                          : `ID #${event.id}`)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 capitalize dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                    {event.event_type}
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={12} className="text-slate-400 shrink-0" />
+                    <span>{event.event_date || `Festival ${event.days_count || 1} Hari`}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                    <MapPin size={12} className="shrink-0" />
+                    <span className="truncate">{event.venue}, {event.city}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    {agencyMap.get(event.agency_id) || `Agency #${event.agency_id}`}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <select
+                    value={event.status}
+                    onChange={(e) => handleStatusChange(event.id, e.target.value)}
+                    className={`cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-medium uppercase outline-none ${
+                      statusStyle[event.status] || statusStyle.draft
+                    }`}
+                  >
+                    {STATUS_OPTIONS.map((st) => (
+                      <option
+                        key={st}
+                        value={st}
+                        disabled={st === "draft" && event.status !== "draft"}
+                        className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white"
+                      >
+                        {st.replace("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/admin/event/${event.id}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                      title="Detail"
+                    >
+                      <Eye size={13} />
+                    </Link>
+                    <Link
+                      href={`/admin/event/${event.id}/edit`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                      title="Edit"
+                    >
+                      <Pencil size={13} />
+                    </Link>
+                    <Link
+                      href={`/admin/event/${event.id}/ticket-phase`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                      title="Fase"
+                    >
+                      <Ticket size={13} />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteEvent(event)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                      title="Hapus"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-2">
           <button
             type="button"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
             Prev
           </button>
-          <span className="rounded-xl bg-[#0080f2] px-3.5 py-2 text-sm font-bold text-white">
+          <span className="rounded-xl bg-[#0080f2] px-3 py-1.5 text-xs font-medium text-white shadow-xs">
             Halaman {page} / {totalPages}
           </span>
           <button
             type="button"
             disabled={page >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             Next
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
       )}

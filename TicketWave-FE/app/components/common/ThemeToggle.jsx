@@ -35,7 +35,7 @@ export default function ThemeToggle({
       >
         <div className="flex items-center gap-3">
           {isDark ? (
-            <Sun size={size} className="text-amber-400" />
+            <Sun size={size} className="text-slate-200" />
           ) : (
             <Moon size={size} className="text-slate-600" />
           )}
@@ -54,14 +54,10 @@ export default function ThemeToggle({
       onClick={toggleTheme}
       aria-label={isDark ? "Beralih ke mode terang" : "Beralih ke mode gelap"}
       title={isDark ? "Beralih ke mode terang" : "Beralih ke mode gelap"}
-      className={`relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 ${
-        brandHover
-          ? "hover:text-[#0070d4] dark:hover:text-[#0080f2]"
-          : "hover:text-cyan-600 dark:hover:text-cyan-400"
-      } dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 ${className}`}
+      className={`relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 dark:hover:text-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 ${className}`}
     >
       {isDark ? (
-        <Sun size={size} className="text-amber-400 transition-transform duration-300 rotate-0 hover:rotate-45" />
+        <Sun size={size} className="text-slate-200 transition-transform duration-300 rotate-0 hover:rotate-45" />
       ) : (
         <Moon size={size} className="text-slate-600 transition-transform duration-300 -rotate-12 hover:rotate-0" />
       )}

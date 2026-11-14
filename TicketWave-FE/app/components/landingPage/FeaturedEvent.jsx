@@ -104,7 +104,7 @@ export default function FeaturedEvent() {
   if (listLoading) {
     return (
       <section className="py-28 bg-slate-950 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center animate-pulse">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-16 items-center animate-pulse">
           <div className="h-[420px] rounded-[35px] bg-slate-800" />
           <div className="space-y-6">
             <div className="h-9 w-44 rounded-full bg-slate-800" />
@@ -123,29 +123,29 @@ export default function FeaturedEvent() {
 
   if (listError || !featured) {
     return (
-      <section className="py-28 bg-slate-950 overflow-hidden">
+      <section className="py-24 bg-slate-950 overflow-hidden">
         <div className="max-w-3xl mx-auto px-6 text-center">
-          <span className="bg-cyan-500/20 text-cyan-300 px-5 py-2 rounded-full">
-            FEATURED EVENT
+          <span className="rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Featured Event
           </span>
           {listError ? (
             <>
-              <AlertTriangle className="mx-auto mt-10 text-red-400" size={40} />
-              <h2 className="text-3xl font-black text-white mt-5">Event unggulan gagal dimuat</h2>
-              <p className="text-gray-400 mt-4">{listError}</p>
+              <AlertTriangle className="mx-auto mt-8 text-slate-400" size={32} />
+              <h2 className="text-2xl font-bold tracking-tight text-white mt-4">Event unggulan gagal dimuat</h2>
+              <p className="text-xs text-slate-400 mt-2">{listError}</p>
               <button
                 type="button"
                 onClick={retry}
-                className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-xl hover:scale-105 transition"
+                className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-slate-900 text-xs font-medium shadow-xs hover:bg-slate-200 transition"
               >
-                <RefreshCw size={18} />
+                <RefreshCw size={14} />
                 Coba Lagi
               </button>
             </>
           ) : (
             <>
-              <h2 className="text-3xl font-black text-white mt-10">Belum ada event unggulan</h2>
-              <p className="text-gray-400 mt-4">
+              <h2 className="text-2xl font-bold tracking-tight text-white mt-6">Belum ada event unggulan</h2>
+              <p className="text-xs text-slate-400 mt-2">
                 Event unggulan akan tampil setelah ada event yang dibuka penjualannya.
               </p>
             </>
@@ -163,7 +163,7 @@ export default function FeaturedEvent() {
   return (
     <section className="py-28 bg-slate-950 overflow-hidden">
 
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
@@ -171,28 +171,27 @@ export default function FeaturedEvent() {
 
           <div className="relative group">
 
-            <div className="absolute inset-0 bg-cyan-500 blur-[120px] opacity-25 rounded-full"></div>
+            <div className="absolute inset-0 bg-slate-500/5 blur-[100px] opacity-20 rounded-full"></div>
 
             <img
               src={bannerOf(featured)}
               alt={featured.name}
               onError={handleImageError}
-              className="relative w-full aspect-[4/3] object-cover rounded-[35px] shadow-2xl group-hover:scale-105 duration-700 transition"
+              className="relative w-full aspect-[4/3] object-cover rounded-2xl border border-slate-800 shadow-xl group-hover:scale-[1.02] duration-500 transition"
             />
 
             {/* Floating Badge (fase harga aktif / tipe event) */}
 
-            <div className="absolute top-6 left-6 bg-white rounded-2xl shadow-xl px-5 py-4">
+            <div className="absolute top-5 left-5 bg-white/95 backdrop-blur-xs rounded-xl shadow-md px-4 py-3 border border-slate-100">
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
 
                 <Star
-                  fill="#FFD700"
-                  color="#FFD700"
-                  size={18}
+                  className="fill-slate-400 text-slate-400"
+                  size={16}
                 />
 
-                <span className="font-bold capitalize">
+                <span className="font-semibold text-xs sm:text-sm text-slate-900 capitalize">
                   {ticketStats?.phase
                     ? `${String(ticketStats.phase.phase_name).replace(/_/g, " ")} -${ticketStats.phase.discount_percent}%`
                     : eventTypeLabel(featured)}
@@ -200,7 +199,7 @@ export default function FeaturedEvent() {
 
               </div>
 
-              <p className="text-gray-500 text-sm">
+              <p className="text-slate-500 text-xs mt-0.5">
                 {featured.city || "Indonesia"}
               </p>
 
@@ -209,11 +208,11 @@ export default function FeaturedEvent() {
             {/* Floating Ticket (sisa kuota dari backend) */}
 
             {ticketStats && (
-              <div className="absolute bottom-6 right-6 bg-cyan-500 text-white rounded-2xl px-5 py-4 shadow-xl">
+              <div className="absolute bottom-5 right-5 bg-slate-900 text-white rounded-xl px-4 py-3 shadow-md border border-slate-700">
 
-                <Ticket />
+                <Ticket size={18} />
 
-                <h2 className="font-bold mt-2">
+                <h2 className="font-semibold text-sm mt-1.5">
                   {ticketStats.remaining.toLocaleString("id-ID")} Left
                 </h2>
 
@@ -226,18 +225,18 @@ export default function FeaturedEvent() {
 
           <div>
 
-            <span className="bg-cyan-500/20 text-cyan-300 px-5 py-2 rounded-full">
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-950/40 border border-blue-900/50 text-[#0080f2] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider">
 
               FEATURED EVENT
 
             </span>
 
-            <h2 className="text-4xl md:text-6xl font-black text-white mt-8 leading-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mt-6 leading-tight tracking-tight">
 
               {title}
 
               {subtitle && (
-                <span className="block text-cyan-400">
+                <span className="block text-slate-200 text-xl sm:text-2xl mt-1.5 font-semibold">
 
                   {subtitle}
 
@@ -246,7 +245,7 @@ export default function FeaturedEvent() {
 
             </h2>
 
-            <p className="text-gray-400 mt-8 leading-8 line-clamp-4">
+            <p className="text-slate-400 mt-5 leading-relaxed text-sm line-clamp-4">
 
               {featured.description || "Informasi lengkap event tersedia di halaman detail."}
 
@@ -254,19 +253,19 @@ export default function FeaturedEvent() {
 
             {/* INFO */}
 
-            <div className="grid grid-cols-2 gap-5 mt-10">
+            <div className="grid grid-cols-2 gap-4 mt-8">
 
-              <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
+              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800/80">
 
-                <Calendar className="text-cyan-400" />
+                <Calendar className="text-slate-400" size={18} />
 
-                <p className="text-gray-400 mt-3">
+                <p className="text-slate-400 mt-2 text-xs">
 
                   Date
 
                 </p>
 
-                <h3 className="text-white font-bold">
+                <h3 className="text-white font-medium text-sm mt-0.5">
 
                   {formatEventDate(featured, { day: "numeric", month: "long", year: "numeric" })}
 
@@ -274,17 +273,17 @@ export default function FeaturedEvent() {
 
               </div>
 
-              <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
+              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800/80">
 
-                <Clock className="text-cyan-400" />
+                <Clock className="text-slate-400" size={18} />
 
-                <p className="text-gray-400 mt-3">
+                <p className="text-slate-400 mt-2 text-xs">
 
                   Time
 
                 </p>
 
-                <h3 className="text-white font-bold">
+                <h3 className="text-white font-medium text-sm mt-0.5">
 
                   {formatEventTime(featured) || "Menyusul"}
 
@@ -292,17 +291,17 @@ export default function FeaturedEvent() {
 
               </div>
 
-              <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
+              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800/80">
 
-                <MapPin className="text-cyan-400" />
+                <MapPin className="text-slate-400" size={18} />
 
-                <p className="text-gray-400 mt-3">
+                <p className="text-slate-400 mt-2 text-xs">
 
                   Venue
 
                 </p>
 
-                <h3 className="text-white font-bold">
+                <h3 className="text-white font-medium text-sm mt-0.5">
 
                   {[featured.venue, featured.city].filter(Boolean).join(", ") || "Menyusul"}
 
@@ -310,17 +309,17 @@ export default function FeaturedEvent() {
 
               </div>
 
-              <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
+              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800/80">
 
-                <Ticket className="text-cyan-400" />
+                <Ticket className="text-slate-400" size={18} />
 
-                <p className="text-gray-400 mt-3">
+                <p className="text-slate-400 mt-2 text-xs">
 
                   Price
 
                 </p>
 
-                <h3 className="text-cyan-400 font-bold text-xl">
+                <h3 className="text-[#0080f2] font-bold text-base mt-0.5">
 
                   {detailLoading ? "Memuat…" : price !== null ? formatRupiah(price) : "Lihat detail"}
 
@@ -332,26 +331,26 @@ export default function FeaturedEvent() {
 
             {/* Sisa kuota tiket */}
 
-            <div className="mt-10">
+            <div className="mt-8">
 
               {detailLoading ? (
-                <div className="h-3 rounded-full bg-slate-800 animate-pulse" />
+                <div className="h-2 rounded-full bg-slate-800 animate-pulse" />
               ) : detail.error ? (
-                <p className="flex items-center gap-2 text-sm text-red-300">
-                  <AlertTriangle size={16} />
+                <p className="flex items-center gap-2 text-xs text-slate-400">
+                  <AlertTriangle size={14} />
                   Data kategori tiket gagal dimuat dari server: {detail.error}
                 </p>
               ) : ticketStats ? (
                 <>
-                  <div className="flex justify-between mb-2">
+                  <div className="flex justify-between mb-1.5 text-xs">
 
-                    <span className="text-gray-400">
+                    <span className="text-slate-400">
 
                       Ticket Remaining
 
                     </span>
 
-                    <span className="text-cyan-400">
+                    <span className="text-slate-300 font-medium">
 
                       {ticketStats.percent}%
 
@@ -359,49 +358,49 @@ export default function FeaturedEvent() {
 
                   </div>
 
-                  <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
 
                     <div
-                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-600"
+                      className="h-full bg-[#0080f2]"
                       style={{ width: `${ticketStats.percent}%` }}
                     ></div>
 
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-gray-400">Kategori tiket belum tersedia untuk event ini.</p>
+                <p className="text-xs text-slate-400">Kategori tiket belum tersedia untuk event ini.</p>
               )}
 
             </div>
 
             {/* BUTTON */}
 
-            <div className="flex flex-wrap gap-5 mt-12">
+            <div className="flex flex-wrap gap-4 mt-8">
 
               {purchasable ? (
                 <button
                   type="button"
                   onClick={handleUnavailableBooking}
-                  className="px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-xl hover:scale-105 transition cursor-pointer"
+                  className="px-6 py-3 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white font-medium shadow-xs transition cursor-pointer text-sm"
                 >
 
                   Book Ticket
 
                 </button>
               ) : (
-                <span className="px-8 py-4 rounded-full bg-slate-800 text-slate-400 font-bold cursor-not-allowed">
+                <span className="px-6 py-3 rounded-xl bg-slate-800 text-slate-400 font-medium text-sm cursor-not-allowed">
                   Tidak Tersedia
                 </span>
               )}
 
               <Link
                 href={`/user/event/${featured.id}`}
-                className="px-8 py-4 rounded-full border border-slate-700 text-white hover:bg-white hover:text-black transition flex items-center gap-2"
+                className="px-6 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 font-medium transition flex items-center gap-2 text-sm"
               >
 
                 Learn More
 
-                <ArrowRight size={18} />
+                <ArrowRight size={16} />
 
               </Link>
 
@@ -417,9 +416,9 @@ export default function FeaturedEvent() {
         <div
           role="alert"
           aria-live="polite"
-          className="fixed bottom-6 right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-amber-200 bg-slate-900 px-5 py-4 text-sm font-medium text-white shadow-2xl"
+          className="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm font-medium text-white shadow-2xl"
         >
-          <Info size={18} className="shrink-0 text-amber-400" />
+          <Info size={18} className="shrink-0 text-slate-400" />
           <span>Fitur pemesanan tiket belum tersedia saat ini.</span>
           <button
             type="button"

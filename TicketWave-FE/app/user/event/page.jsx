@@ -118,16 +118,16 @@ function EventListContent() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12 transition-colors">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 transition-colors">
       {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
+      <div className="mb-6">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
           Katalog Resmi TicketWave
         </span>
-        <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+        <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
           Jelajahi Semua Event
         </h1>
-        <p className="mt-3 max-w-2xl leading-7 text-slate-500 dark:text-slate-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           Temukan konser tunggal maupun festival multi-hari yang sedang berstatus{" "}
           <span className="font-semibold text-slate-700 dark:text-slate-300">On Sale</span>.
           Saring berdasarkan tipe event, kota penyelenggaraan, atau rentang tanggal.
@@ -181,12 +181,12 @@ function EventListContent() {
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <div
               key={n}
-              className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              className="overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900"
             >
-              <div className="h-56 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
-              <div className="mt-5 h-6 w-3/4 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
-              <div className="mt-3 h-4 w-1/2 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
-              <div className="mt-6 h-10 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+              <div className="h-52 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-4 h-5 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-2.5 h-3.5 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+              <div className="mt-5 h-9 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
             </div>
           ))}
         </div>
@@ -194,17 +194,17 @@ function EventListContent() {
 
       {/* Error State */}
       {!loading && error && (
-        <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-10 text-center dark:border-red-900/50 dark:bg-red-950/30">
-          <p className="text-lg font-bold text-red-700 dark:text-red-300">
+        <div className="mt-6 rounded-xl border border-slate-300 bg-slate-100 p-8 text-center dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-base font-semibold text-slate-800 dark:text-slate-200">
             Gagal memuat katalog event
           </p>
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{error}</p>
           <button
             type="button"
             onClick={fetchEvents}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#0080f2] px-5 py-2.5 text-sm font-bold text-white shadow transition hover:bg-[#0070d4]"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4]"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={14} />
             Coba Lagi
           </button>
         </div>
@@ -231,18 +231,18 @@ function EventListContent() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-10 flex items-center justify-center gap-3">
+            <div className="mt-8 flex items-center justify-center gap-2.5">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={15} />
                 Sebelumnya
               </button>
 
-              <span className="rounded-xl bg-[#0080f2] px-4 py-2.5 text-sm font-bold text-white">
+              <span className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                 Halaman {page} dari {totalPages}
               </span>
 
@@ -250,10 +250,10 @@ function EventListContent() {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-[#0080f2] hover:bg-[#0070d4] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#0080f2]/25 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:bg-[#0070d4] dark:hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
               >
                 Berikutnya
-                <ChevronRight size={16} />
+                <ChevronRight size={15} />
               </button>
             </div>
           )}

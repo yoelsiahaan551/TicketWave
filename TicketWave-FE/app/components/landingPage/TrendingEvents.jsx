@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Calendar, MapPin, ArrowRight, Ticket, AlertTriangle, RefreshCw, CalendarX, Info, X } from "lucide-react";
+import { Calendar, MapPin, ArrowRight, Ticket, AlertTriangle, RefreshCw, CalendarX, Info, X, Clock, Flame } from "lucide-react";
 import api from "@/app/lib/api";
 import { useLandingCities } from "@/app/components/landingPage/useLandingEvents";
 import {
@@ -79,46 +79,46 @@ export default function TrendingEvents() {
 
   return (
     <section id="events" className="py-24 bg-slate-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex justify-between items-center mb-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <p className="text-cyan-600 font-semibold uppercase tracking-widest">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
               Trending
             </p>
-            <h2 className="text-4xl md:text-5xl font-black mt-2 text-slate-900">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mt-1 text-slate-900">
               Popular Events
             </h2>
-            <p className="text-slate-500 mt-4">
+            <p className="text-sm text-slate-500 mt-2">
               Event yang sedang dijual di TicketWave — langsung dari sistem kami.
             </p>
           </div>
 
           <Link
             href={city ? `/user/event?city=${encodeURIComponent(city)}` : "/user/event"}
-            className="hidden md:flex items-center gap-2 rounded-full border px-6 py-3 hover:bg-slate-900 hover:text-white transition"
+            className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-xs transition"
           >
             View All
-            <ArrowRight size={18} />
+            <ArrowRight size={16} />
           </Link>
         </div>
 
         {/* City filter (GET /api/public/events/cities) */}
         {cities.length > 0 && (
-          <div className="mb-10 flex gap-3 overflow-x-auto pb-2">
+          <div className="mb-8 flex gap-2.5 overflow-x-auto pb-2">
             {["", ...cities].map((c) => (
               <button
                 key={c || "all"}
                 type="button"
                 onClick={() => selectCity(c)}
-                className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-xs sm:text-sm font-medium transition ${
                   city === c
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
-                    : "border border-slate-200 bg-white text-slate-700 hover:border-cyan-500 hover:text-cyan-600"
+                    ? "bg-[#0080f2] text-white shadow-xs"
+                    : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
               >
                 {c ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <MapPin size={14} />
+                    <MapPin size={13} />
                     {c}
                   </span>
                 ) : (
@@ -130,15 +130,15 @@ export default function TrendingEvents() {
         )}
 
         {loading && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8" aria-busy="true">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true">
             {[0, 1, 2].map((n) => (
-              <div key={n} className="bg-white rounded-[30px] overflow-hidden shadow-md animate-pulse">
-                <div className="h-72 bg-slate-200" />
-                <div className="p-7 space-y-4">
-                  <div className="h-6 w-3/4 rounded-full bg-slate-200" />
+              <div key={n} className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-xs animate-pulse">
+                <div className="h-60 bg-slate-200" />
+                <div className="p-6 space-y-3">
+                  <div className="h-5 w-3/4 rounded-full bg-slate-200" />
                   <div className="h-4 w-1/2 rounded-full bg-slate-200" />
                   <div className="h-4 w-2/3 rounded-full bg-slate-200" />
-                  <div className="h-10 w-full rounded-full bg-slate-200 mt-6" />
+                  <div className="h-9 w-full rounded-xl bg-slate-200 mt-4" />
                 </div>
               </div>
             ))}
@@ -146,26 +146,26 @@ export default function TrendingEvents() {
         )}
 
         {!loading && error && (
-          <div className="rounded-[30px] border border-red-200 bg-white p-10 text-center shadow-sm">
-            <AlertTriangle className="mx-auto text-red-500" size={36} />
-            <h3 className="mt-4 text-xl font-bold text-slate-900">Gagal memuat event</h3>
-            <p className="mt-2 text-slate-500">{error}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+            <AlertTriangle className="mx-auto text-slate-400" size={32} />
+            <h3 className="mt-3 text-lg font-semibold text-slate-900">Gagal memuat event</h3>
+            <p className="mt-1 text-sm text-slate-500">{error}</p>
             <button
               type="button"
               onClick={retry}
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 font-semibold text-white hover:scale-105 transition"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-xs transition"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={14} />
               Coba Lagi
             </button>
           </div>
         )}
 
         {!loading && !error && events.length === 0 && (
-          <div className="rounded-[30px] border border-dashed border-slate-300 bg-white p-10 text-center">
-            <CalendarX className="mx-auto text-slate-400" size={36} />
-            <h3 className="mt-4 text-xl font-bold text-slate-900">Belum ada event yang dijual</h3>
-            <p className="mt-2 text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+            <CalendarX className="mx-auto text-slate-400" size={32} />
+            <h3 className="mt-3 text-lg font-semibold text-slate-900">Belum ada event yang dijual</h3>
+            <p className="mt-1 text-sm text-slate-500">
               {city
                 ? `Belum ada event on sale di ${city}. Coba pilih kota lain.`
                 : "Event baru akan tampil di sini segera setelah penjualan dibuka."}
@@ -174,7 +174,7 @@ export default function TrendingEvents() {
         )}
 
         {!loading && !error && events.length > 0 && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => {
               const price = priceFromOf(event);
               const purchasable = isPurchasable(event);
@@ -183,60 +183,70 @@ export default function TrendingEvents() {
               return (
                 <div
                   key={event.id}
-                  className="group flex flex-col bg-white rounded-[30px] overflow-hidden shadow-md hover:shadow-2xl transition duration-500"
+                  className="group flex flex-col bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-md transition-all duration-200"
                 >
                   <Link href={`/user/event/${event.id}`} className="relative block overflow-hidden">
                     <img
                       src={posterOf(event)}
                       alt={event.name}
                       onError={handleImageError}
-                      className="h-72 w-full object-cover group-hover:scale-110 transition duration-700"
+                      className="h-60 w-full object-cover group-hover:scale-105 transition duration-500"
                     />
 
-                    <div className="absolute top-5 left-5 bg-white rounded-full px-4 py-2 font-semibold shadow">
-                      {past ? "⏳ Sudah Berakhir" : "🔥 Trending"}
+                    <div className="absolute top-3.5 left-3.5 bg-white/95 backdrop-blur-xs rounded-full px-3 py-1 font-medium shadow-xs flex items-center gap-1.5 text-xs text-slate-800">
+                      {past ? (
+                        <>
+                          <Clock size={13} className="text-slate-500" />
+                          <span>Sudah Berakhir</span>
+                        </>
+                      ) : (
+                        <>
+                          <Flame size={13} className="text-[#0080f2]" />
+                          <span>Trending</span>
+                        </>
+                      )}
                     </div>
 
-                    <div className="absolute bottom-5 right-5 bg-black/70 backdrop-blur text-white rounded-full px-4 py-2 flex items-center gap-2 text-sm font-semibold">
-                      <Ticket size={16} className="text-cyan-300" />
+                    <div className="absolute bottom-3.5 right-3.5 bg-slate-900/80 backdrop-blur-xs text-white rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium">
+                      <Ticket size={13} className="text-slate-400" />
                       {eventTypeLabel(event)}
                     </div>
                   </Link>
 
-                  <div className="p-7 flex flex-1 flex-col">
+                  <div className="p-5 flex flex-1 flex-col">
                     <Link href={`/user/event/${event.id}`}>
-                      <h3 className="text-2xl font-bold text-slate-900 hover:text-blue-600 transition line-clamp-2">
+                      <h3 className="text-base sm:text-lg font-semibold text-slate-900 hover:text-[#0080f2] transition line-clamp-2">
                         {event.name}
                       </h3>
                     </Link>
                     {event.artist_name && (
-                      <p className="mt-1 text-sm text-slate-500">{event.artist_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">{event.artist_name}</p>
                     )}
 
-                    <div className="flex items-center gap-2 text-slate-500 mt-4">
-                      <MapPin size={18} className="shrink-0" />
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
+                      <MapPin size={15} className="shrink-0 text-slate-400" />
                       <span className="line-clamp-1">
                         {[event.venue, event.city].filter(Boolean).join(", ") || "Lokasi menyusul"}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-slate-500 mt-2">
-                      <Calendar size={18} className="shrink-0" />
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1.5">
+                      <Calendar size={15} className="shrink-0 text-slate-400" />
                       {formatEventDate(event)}
                       {time ? ` • ${time}` : ""}
                     </div>
 
-                    <div className="mt-8">
-                      <p className="text-slate-400 text-sm">Mulai dari</p>
-                      <h2 className="text-2xl md:text-3xl font-black text-blue-600">
+                    <div className="mt-5 pt-3 border-t border-slate-100">
+                      <p className="text-xs text-slate-400">Mulai dari</p>
+                      <h2 className="text-lg sm:text-xl font-bold text-[#0080f2]">
                         {price !== null ? formatRupiah(price) : "Lihat di detail"}
                       </h2>
                     </div>
 
-                    <div className="mt-6 grid grid-cols-2 gap-3">
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
                       <Link
                         href={`/user/event/${event.id}`}
-                        className="rounded-full border border-slate-200 px-4 py-3 text-center font-semibold text-slate-700 hover:bg-slate-900 hover:text-white transition"
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-center text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
                       >
                         Lihat Detail
                       </Link>
@@ -244,12 +254,12 @@ export default function TrendingEvents() {
                         <button
                           type="button"
                           onClick={handleUnavailableBooking}
-                          className="cursor-pointer rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-center font-semibold text-white hover:scale-105 transition"
+                          className="cursor-pointer rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-3 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-xs transition"
                         >
                           Beli Tiket
                         </button>
                       ) : (
-                        <span className="cursor-not-allowed rounded-full bg-slate-200 px-4 py-3 text-center font-semibold text-slate-500">
+                        <span className="cursor-not-allowed rounded-xl bg-slate-100 px-3 py-2 text-center text-xs sm:text-sm font-medium text-slate-400">
                           Tidak Tersedia
                         </span>
                       )}
@@ -263,10 +273,10 @@ export default function TrendingEvents() {
 
         <Link
           href="/user/event"
-          className="md:hidden mt-10 flex items-center justify-center gap-2 rounded-full border px-6 py-3 hover:bg-slate-900 hover:text-white transition"
+          className="md:hidden mt-8 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-xs transition"
         >
           View All
-          <ArrowRight size={18} />
+          <ArrowRight size={16} />
         </Link>
       </div>
 
@@ -274,9 +284,9 @@ export default function TrendingEvents() {
         <div
           role="alert"
           aria-live="polite"
-          className="fixed bottom-6 right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-amber-200 bg-slate-900 px-5 py-4 text-sm font-medium text-white shadow-2xl"
+          className="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm font-medium text-white shadow-2xl"
         >
-          <Info size={18} className="shrink-0 text-amber-400" />
+          <Info size={18} className="shrink-0 text-slate-400" />
           <span>Fitur pemesanan tiket belum tersedia saat ini.</span>
           <button
             type="button"

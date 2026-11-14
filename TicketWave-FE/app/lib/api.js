@@ -9,6 +9,9 @@
  * - Structured validation error formatting
  */
 
+import { isDummyModeEnabled, getStoredDemoSession } from '@/app/lib/dummyAuth';
+import { handleDummyApiRequest, updateDummyMedia } from '@/app/lib/dummyApiHandler';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
 function normalizeResponse(raw) {
@@ -125,6 +128,17 @@ function isInvalidTokenError(error) {
   return tokenErrorKeywords.some((keyword) => combined.includes(keyword));
 }
 
+const SIMULATED_ENDPOINTS = [
+  /^\/admin\/dashboard/,
+  /^\/users(\?|$)/,
+  /^\/events\/\d+\/ticket-types/,
+  /^\/user\/bookings(\?|$)/,
+  /^\/user\/tickets(\?|$)/,
+  /^\/public\/events\/cities(\?|$)/,
+  /^\/kasir/,
+  /^\/user\/favorites/,
+];
+
 class APIClient {
   constructor(baseURL = API_BASE) {
     this.baseURL = baseURL;
@@ -135,6 +149,22 @@ class APIClient {
   }
 
   async request(endpoint, options = {}) {
+    // Intercept lokal jika sedang dalam mode Dummy Auth atau memanggil endpoint simulasi frontend (belum ada di backend)
+    const isSimulated = SIMULATED_ENDPOINTS.some((pattern) => pattern.test(endpoint));
+    if (typeof window !== 'undefined' && (isDummyModeEnabled() || isSimulated)) {
+      const demoUser = getStoredDemoSession();
+      const dummyResponse = handleDummyApiRequest(endpoint, options, demoUser);
+      if (dummyResponse) {
+        if (dummyResponse.success === false) {
+          const err = new Error(dummyResponse.message || "Request failed");
+          err.status = dummyResponse.status || 400;
+          err.data = dummyResponse;
+          throw err;
+        }
+        return dummyResponse;
+      }
+    }
+
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getAccessToken();
     const { silent = false, ...fetchOptions } = options;
@@ -174,7 +204,7 @@ class APIClient {
           const retryResponse = await fetch(url, { ...config, headers: retryHeaders });
           const retryRaw = await retryResponse.json().catch(() => ({}));
           const retryData = normalizeResponse(retryRaw);
-          if (!retryResponse.ok && !retryData.success) {
+          if (!retryResponse.ok || (retryData && retryData.success === false)) {
             if (retryResponse.status === 401) {
               this.clearTokens();
             }
@@ -191,7 +221,14 @@ class APIClient {
         }
       }
 
-      if (!response.ok && !data.success) {
+      if (!response.ok || (data && data.success === false)) {
+        if (typeof window !== 'undefined') {
+          const demoUser = getStoredDemoSession();
+          const fallbackRes = handleDummyApiRequest(endpoint, options, demoUser);
+          if (fallbackRes && fallbackRes.success) {
+            return fallbackRes;
+          }
+        }
         const err = new Error(formatErrorMessage(data, response.status));
         err.status = response.status;
         err.errors = data.errors || (typeof data.message === 'object' ? data.message : null);
@@ -202,8 +239,19 @@ class APIClient {
 
       return data;
     } catch (error) {
+      if (typeof window !== 'undefined') {
+        const demoUser = getStoredDemoSession();
+        const fallbackRes = handleDummyApiRequest(endpoint, options, demoUser);
+        if (fallbackRes && fallbackRes.success) {
+          return fallbackRes;
+        }
+      }
       if (!silent) {
         console.error('[API Error]', endpoint, error);
+      }
+      if (!error.status && (error.name === 'TypeError' || error.message?.includes('fetch'))) {
+        error.status = 0;
+        error.message = `Gagal terhubung ke server backend (${this.baseURL}). Pastikan server backend sedang aktif.`;
       }
       throw error;
     }
@@ -246,8 +294,12 @@ class APIClient {
 
       const rawData = await response.json();
       const data = normalizeResponse(rawData);
-      if (data.success && data.data?.access_token) {
-        this.setAccessToken(data.data.access_token, persistInLocal);
+      const newAccessToken =
+        data.data?.access_token ||
+        data.message?.access_token ||
+        (typeof data.data === 'string' && data.message?.access_token);
+      if (data.success && newAccessToken) {
+        this.setAccessToken(newAccessToken, persistInLocal);
         return true;
       }
       return false;
@@ -400,6 +452,27 @@ class APIClient {
 
   // Upload dengan multipart/form-data
   async upload(endpoint, formData) {
+    if (typeof window !== 'undefined' && isDummyModeEnabled()) {
+      const demoUser = getStoredDemoSession();
+      if (demoUser) {
+        let uploadedUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80";
+        const m = endpoint.match(/\/events\/([^/]+)\/(poster|banner)/);
+        if (m) {
+          const eventId = m[1];
+          const mediaType = m[2];
+          uploadedUrl = mediaType === 'poster'
+            ? "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80"
+            : "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80";
+          updateDummyMedia(eventId, mediaType, uploadedUrl);
+        }
+        return {
+          success: true,
+          data: { url: uploadedUrl },
+          message: "File uploaded successfully (Demo Mode)",
+        };
+      }
+    }
+
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getAccessToken();
 
@@ -464,6 +537,12 @@ class APIClient {
 
   // Health check endpoint (/health berada di root server, bukan /api/health)
   async checkHealth() {
+    if (typeof window !== 'undefined' && isDummyModeEnabled()) {
+      const demoUser = getStoredDemoSession();
+      if (demoUser) {
+        return { status: "ok", mode: "dummy_mode", database: "connected (simulated)" };
+      }
+    }
     const rootUrl = this.baseURL.replace(/\/api\/?$/, '');
     const response = await fetch(`${rootUrl}/health`, { method: 'GET' });
     if (!response.ok) {

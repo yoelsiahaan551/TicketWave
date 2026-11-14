@@ -236,490 +236,532 @@ export default function CreateEventPage() {
     <div className="space-y-6">
       <Link
         href="/admin/event"
-        className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#0080f2] dark:text-slate-400"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
-        <ArrowLeft size={17} />
+        <ArrowLeft size={15} />
         Kembali ke Daftar Event
       </Link>
 
       <div>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
           Buat Event Baru
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Terhubung dengan <code className="font-mono">POST /api/events</code> (beserta pembuatan nested <code className="font-mono">ticket_types</code> dan <code className="font-mono">festival_artists</code>), upload poster/banner, dan pengaturan status awal.
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          Buat event beserta kategori tiket, fase harga, dan unggah poster/banner resmi.
         </p>
       </div>
 
-      {error && (
-        <div className="flex max-w-4xl items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          <AlertCircle size={18} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
-        {/* Basic Info */}
-        <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="text-xl font-black text-slate-900 dark:text-white">
-            1. Informasi Dasar Event
-          </h2>
-
-          {/* Event Type */}
-          <div>
-            <label className="mb-3 block text-sm font-bold text-slate-900 dark:text-white">
-              Tipe Event *
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                {
-                  id: "single",
-                  title: "Single Event / Konser",
-                  desc: "Wajib mengisi nama artis, tanggal, dan jam mulai",
-                },
-                {
-                  id: "festival",
-                  title: "Festival Multi-Hari",
-                  desc: "Wajib mengisi jumlah hari (1–10) dan lineup artis per hari",
-                },
-              ].map((t) => (
-                <label
-                  key={t.id}
-                  className={`flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-4 transition ${
-                    eventType === t.id
-                      ? "border-[#0080f2] bg-[#0080f2]/10 dark:border-[#0080f2] dark:bg-[#0080f2]/20"
-                      : "border-slate-200 hover:border-slate-300 dark:border-slate-800"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="event_type"
-                    value={t.id}
-                    checked={eventType === t.id}
-                    onChange={() => setEventType(t.id)}
-                    className="text-[#0080f2]"
-                  />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      {t.title}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {t.desc}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Name & Agency */}
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                Nama Event *
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Contoh: SoundWave Jakarta 2026"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                Agency Penyelenggara *
-              </label>
-              <select
-                required
-                value={agencyId}
-                onChange={(e) => setAgencyId(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="">-- Pilih Agency --</option>
-                {agencies.map((ag) => (
-                  <option key={ag.id} value={ag.id}>
-                    {ag.name} (ID #{ag.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {eventType === "single" ? (
-            <div className="grid gap-6 sm:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                  Nama Artis Utama *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={artistName}
-                  onChange={(e) => setArtistName(e.target.value)}
-                  placeholder="Contoh: Tulus"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
+      <form onSubmit={handleSubmit} className="w-full">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          {/* Left Column: Form Details & Tickets */}
+          <div className="space-y-6 xl:col-span-8">
+            {error && (
+              <div className="flex items-start gap-2 rounded-xl border border-slate-300 bg-slate-100 p-3.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <AlertCircle size={15} className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                <span>{error}</span>
               </div>
+            )}
+
+            {/* Basic Info */}
+            <div className="space-y-5 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                1. Informasi Dasar Event
+              </h2>
+
+              {/* Event Type */}
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                  Tanggal Event *
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Tipe Event *
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    {
+                      id: "single",
+                      title: "Single Event / Konser",
+                      desc: "Wajib mengisi nama artis, tanggal, dan jam mulai",
+                    },
+                    {
+                      id: "festival",
+                      title: "Festival Multi-Hari",
+                      desc: "Wajib mengisi jumlah hari (1–10) dan lineup artis per hari",
+                    },
+                  ].map((t) => (
+                    <label
+                      key={t.id}
+                      className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-3.5 transition-colors ${
+                        eventType === t.id
+                          ? "border-[#0080f2] bg-blue-50/40 dark:border-blue-600 dark:bg-blue-950/30"
+                          : "border-slate-200/80 hover:border-slate-300 dark:border-slate-800"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="event_type"
+                        value={t.id}
+                        checked={eventType === t.id}
+                        onChange={() => setEventType(t.id)}
+                        className="text-[#0080f2] focus:ring-[#0080f2]"
+                      />
+                      <div>
+                        <p className="text-xs font-medium text-slate-900 dark:text-white">
+                          {t.title}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {t.desc}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                  Jam Mulai *
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={eventTime}
-                  onChange={(e) => setEventTime(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+
+              {/* Name & Agency */}
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-bold text-slate-900 dark:text-white">
-                    Jumlah Hari Festival (1 – 10 Hari) *
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Nama Event *
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={10}
+                    type="text"
                     required
-                    value={daysCount}
-                    onChange={(e) => setDaysCount(Number(e.target.value) || 1)}
-                    className="mt-2 w-32 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Contoh: SoundWave Jakarta 2026"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={addFestivalArtist}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0070d4]"
-                >
-                  <Plus size={15} />
-                  Tambah Artis Lineup
-                </button>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Agency Penyelenggara *
+                  </label>
+                  <select
+                    required
+                    value={agencyId}
+                    onChange={(e) => setAgencyId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  >
+                    <option value="">-- Pilih Agency --</option>
+                    {agencies.map((ag) => (
+                      <option key={ag.id} value={ag.id}>
+                        {ag.name} (ID #{ag.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {festivalArtists.map((fa, idx) => (
-                  <div key={idx} className="flex items-center gap-3">
-                    <div className="w-32">
-                      <label className="mb-1 block text-[11px] font-bold text-slate-500">
-                        Hari ke-
+              {eventType === "single" ? (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Nama Artis Utama *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={artistName}
+                      onChange={(e) => setArtistName(e.target.value)}
+                      placeholder="Contoh: Tulus"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Tanggal Event *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Jam Mulai *
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={eventTime}
+                      onChange={(e) => setEventTime(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Jumlah Hari Festival (1 – 10 Hari) *
                       </label>
                       <input
                         type="number"
                         min={1}
-                        max={daysCount}
+                        max={10}
                         required
-                        value={fa.day_number}
-                        onChange={(e) =>
-                          updateFestivalArtist(idx, "day_number", e.target.value)
-                        }
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        value={daysCount}
+                        onChange={(e) => setDaysCount(Number(e.target.value) || 1)}
+                        className="mt-1.5 w-28 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
                     </div>
-                    <div className="flex-1">
-                      <label className="mb-1 block text-[11px] font-bold text-slate-500">
-                        Nama Penampil / Artis *
-                      </label>
+                    <button
+                      type="button"
+                      onClick={addFestivalArtist}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                    >
+                      <Plus size={14} />
+                      Tambah Artis Lineup
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {festivalArtists.map((fa, idx) => (
+                      <div key={idx} className="flex items-center gap-2.5">
+                        <div className="w-28">
+                          <label className="mb-0.5 block text-[10px] font-medium text-slate-400">
+                            Hari ke-
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={daysCount}
+                            required
+                            value={fa.day_number}
+                            onChange={(e) =>
+                              updateFestivalArtist(idx, "day_number", e.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="mb-0.5 block text-[10px] font-medium text-slate-400">
+                            Nama Penampil / Artis *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={fa.artist_name}
+                            onChange={(e) =>
+                              updateFestivalArtist(idx, "artist_name", e.target.value)
+                            }
+                            placeholder="Nama band / penyanyi"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </div>
+                        {festivalArtists.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeFestivalArtist(idx)}
+                            className="mt-4 rounded-lg border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Venue & City */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Nama Venue *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={venue}
+                    onChange={(e) => setVenue(e.target.value)}
+                    placeholder="Contoh: Istora Senayan"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Kota *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Contoh: Jakarta"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Deskripsi Event
+                </label>
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Jelaskan informasi lengkap mengenai event..."
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Ticket Types Section */}
+            <div className="space-y-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    <Ticket size={16} className="text-slate-400" />
+                    2. Kategori Tiket (Ticket Types)
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Kategori tiket dibuat bersama event. Anda dapat menambahkan fase diskon pada tiap kategori.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addTicketType}
+                  className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                >
+                  <Plus size={14} />
+                  Tambah Kategori
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {ticketTypes.map((tt, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/40"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Nama Kategori *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={tt.name}
+                          onChange={(e) =>
+                            updateTicketType(idx, "name", e.target.value)
+                          }
+                          placeholder="VIP / Regular"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Harga Dasar (IDR) *
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          required
+                          value={tt.base_price}
+                          onChange={(e) =>
+                            updateTicketType(idx, "base_price", e.target.value)
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Kuota Tiket *
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={tt.quota}
+                          onChange={(e) =>
+                            updateTicketType(idx, "quota", e.target.value)
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
                       <input
                         type="text"
-                        required
-                        value={fa.artist_name}
+                        value={tt.description}
                         onChange={(e) =>
-                          updateFestivalArtist(idx, "artist_name", e.target.value)
+                          updateTicketType(idx, "description", e.target.value)
                         }
-                        placeholder="Nama band / penyanyi"
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        placeholder="Deskripsi singkat (opsional)"
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
-                    </div>
-                    {festivalArtists.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => removeFestivalArtist(idx)}
-                        className="mt-5 rounded-xl border border-red-200 p-2 text-red-500 hover:bg-red-50 dark:border-red-800"
+                        onClick={() => addNestedPhase(idx)}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                       >
-                        <Trash2 size={16} />
+                        <Plus size={12} />
+                        Fase Diskon
                       </button>
+                      {ticketTypes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTicketType(idx)}
+                          className="rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Optional Nested Phases */}
+                    {tt.phases && tt.phases.length > 0 && (
+                      <div className="mt-3 space-y-2 border-t border-slate-200 pt-2.5 dark:border-slate-700">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Fase Diskon
+                        </p>
+                        {tt.phases.map((ph, pIdx) => (
+                          <div
+                            key={pIdx}
+                            className="grid gap-2 rounded-xl border border-slate-200 bg-white p-2.5 sm:grid-cols-5 dark:border-slate-700 dark:bg-slate-900"
+                          >
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-slate-400">
+                                Fase
+                              </label>
+                              <select
+                                value={ph.phase_name}
+                                onChange={(e) =>
+                                  updateNestedPhase(idx, pIdx, "phase_name", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              >
+                                <option value="early_bird">Early Bird</option>
+                                <option value="presale">Presale</option>
+                                <option value="normal">Normal</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-slate-400">
+                                Mulai *
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                value={ph.start_date}
+                                onChange={(e) =>
+                                  updateNestedPhase(idx, pIdx, "start_date", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-slate-400">
+                                Berakhir *
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                value={ph.end_date}
+                                onChange={(e) =>
+                                  updateNestedPhase(idx, pIdx, "end_date", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-slate-400">
+                                Diskon (%)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ph.discount_percent}
+                                onChange={(e) =>
+                                  updateNestedPhase(
+                                    idx,
+                                    pIdx,
+                                    "discount_percent",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={() => removeNestedPhase(idx, pIdx)}
+                                className="w-full rounded-lg border border-slate-300 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Venue & City */}
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                Nama Venue *
-              </label>
-              <input
-                type="text"
-                required
-                value={venue}
-                onChange={(e) => setVenue(e.target.value)}
-                placeholder="Contoh: Istora Senayan"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-                Kota *
-              </label>
-              <input
-                type="text"
-                required
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Contoh: Jakarta"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-              Deskripsi Event
-            </label>
-            <textarea
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Jelaskan informasi lengkap mengenai event..."
-              className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
-        </div>
+          {/* Right Column: Actions & Media */}
+          <div className="space-y-5 xl:col-span-4">
+            {/* Sticky Actions & Status */}
+            <div className="space-y-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs xl:sticky xl:top-6 dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Status &amp; Publikasi
+              </h3>
 
-        {/* Ticket Types Section */}
-        <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="flex items-center gap-2 text-xl font-black text-slate-900 dark:text-white">
-                <Ticket size={20} className="text-[#0080f2] dark:text-[#0080f2]" />
-                2. Kategori Tiket (Ticket Types)
-              </h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Penting: Kategori tiket wajib dibuat saat pembuatan event (<code className="font-mono">POST /api/events</code>). Setelah event dibuat, Anda dapat menambahkan fase diskon (Early Bird / Presale) pada setiap kategori tiket.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={addTicketType}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-bold text-white shadow"
-            >
-              <Plus size={15} />
-              Tambah Kategori Tiket
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {ticketTypes.map((tt, idx) => (
-              <div
-                key={idx}
-                className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 dark:border-slate-800 dark:bg-slate-800/40"
-              >
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Nama Kategori *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={tt.name}
-                      onChange={(e) =>
-                        updateTicketType(idx, "name", e.target.value)
-                      }
-                      placeholder="VIP / Festival / Regular"
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Harga Dasar (IDR) *
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      required
-                      value={tt.base_price}
-                      onChange={(e) =>
-                        updateTicketType(idx, "base_price", e.target.value)
-                      }
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Kuota Tiket *
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      required
-                      value={tt.quota}
-                      onChange={(e) =>
-                        updateTicketType(idx, "quota", e.target.value)
-                      }
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <input
-                    type="text"
-                    value={tt.description}
-                    onChange={(e) =>
-                      updateTicketType(idx, "description", e.target.value)
-                    }
-                    placeholder="Deskripsi singkat kategori tiket (opsional)"
-                    className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addNestedPhase(idx)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-[#0080f2]/40 bg-[#0080f2]/10 px-3 py-2 text-xs font-bold text-[#0080f2] hover:bg-[#0080f2]/15 dark:border-[#0080f2]/50 dark:bg-[#0080f2]/20 dark:text-[#0080f2]"
-                  >
-                    <Plus size={13} />
-                    Fase Diskon Awal
-                  </button>
-                  {ticketTypes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeTicketType(idx)}
-                      className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-red-800"
-                    >
-                      Hapus
-                    </button>
-                  )}
-                </div>
-
-                {/* Optional Nested Phases inside TicketTypeSchema */}
-                {tt.phases && tt.phases.length > 0 && (
-                  <div className="mt-4 space-y-2.5 border-t border-slate-200 pt-3 dark:border-slate-700">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
-                      Fase Diskon Awal (Nested Phases pada POST /api/events)
-                    </p>
-                    {tt.phases.map((ph, pIdx) => (
-                      <div
-                        key={pIdx}
-                        className="grid gap-2.5 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-5 dark:border-slate-700 dark:bg-slate-900"
-                      >
-                        <div>
-                          <label className="mb-1 block text-[10px] font-bold text-slate-500">
-                            Fase
-                          </label>
-                          <select
-                            value={ph.phase_name}
-                            onChange={(e) =>
-                              updateNestedPhase(idx, pIdx, "phase_name", e.target.value)
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          >
-                            <option value="early_bird">Early Bird</option>
-                            <option value="presale">Presale</option>
-                            <option value="normal">Normal</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[10px] font-bold text-slate-500">
-                            Mulai *
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            value={ph.start_date}
-                            onChange={(e) =>
-                              updateNestedPhase(idx, pIdx, "start_date", e.target.value)
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[10px] font-bold text-slate-500">
-                            Berakhir *
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            value={ph.end_date}
-                            onChange={(e) =>
-                              updateNestedPhase(idx, pIdx, "end_date", e.target.value)
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[10px] font-bold text-slate-500">
-                            Diskon (%)
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={ph.discount_percent}
-                            onChange={(e) =>
-                              updateNestedPhase(
-                                idx,
-                                pIdx,
-                                "discount_percent",
-                                e.target.value
-                              )
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <button
-                            type="button"
-                            onClick={() => removeNestedPhase(idx, pIdx)}
-                            className="w-full rounded-lg border border-red-200 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 dark:border-red-800"
-                          >
-                            Hapus Fase
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Status Awal Event
+                </label>
+                <select
+                  value={initialStatus}
+                  onChange={(e) => setInitialStatus(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                >
+                  <option value="on_sale">ON SALE — Langsung tampil di Katalog</option>
+                  <option value="published">PUBLISHED — Terpublikasi</option>
+                  <option value="draft">DRAFT — Simpan draf internal</option>
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Status On Sale memungkinkan penonton langsung memesan tiket.
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Images & Initial Status */}
-        <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="text-xl font-black text-slate-900 dark:text-white">
-            3. Media &amp; Status Publikasi Awal
-          </h2>
+              <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-50"
+                >
+                  <Ticket size={15} />
+                  {submitting ? "Membuat Event..." : "Simpan & Publikasikan Event"}
+                </button>
+                <Link
+                  href="/admin/event"
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200/80 px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Batal
+                </Link>
+              </div>
+            </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
+            {/* Poster Upload */}
+            <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Poster Event (Opsional)
               </label>
-              <label className="flex h-48 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 transition hover:border-[#0080f2] dark:border-slate-700">
+              <label className="flex h-44 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {posterPreview ? (
                   <img
                     src={posterPreview}
@@ -728,9 +770,12 @@ export default function CreateEventPage() {
                   />
                 ) : (
                   <>
-                    <Upload size={28} className="text-slate-400" />
-                    <span className="mt-2 text-xs font-semibold text-slate-500">
+                    <Upload size={22} className="text-slate-400" />
+                    <span className="mt-1.5 text-xs text-slate-500">
                       Klik untuk memilih Poster
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      JPG, PNG, WEBP (maks. 5MB)
                     </span>
                   </>
                 )}
@@ -749,11 +794,12 @@ export default function CreateEventPage() {
               </label>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
+            {/* Banner Upload */}
+            <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Banner Event (Opsional)
               </label>
-              <label className="flex h-48 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 transition hover:border-[#0080f2] dark:border-slate-700">
+              <label className="flex h-36 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {bannerPreview ? (
                   <img
                     src={bannerPreview}
@@ -762,9 +808,12 @@ export default function CreateEventPage() {
                   />
                 ) : (
                   <>
-                    <Upload size={28} className="text-slate-400" />
-                    <span className="mt-2 text-xs font-semibold text-slate-500">
+                    <Upload size={22} className="text-slate-400" />
+                    <span className="mt-1.5 text-xs text-slate-500">
                       Klik untuk memilih Banner
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Rekomendasi rasio 16:9
                     </span>
                   </>
                 )}
@@ -783,40 +832,6 @@ export default function CreateEventPage() {
               </label>
             </div>
           </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-              Status Awal Event Setelah Dibuat
-            </label>
-            <select
-              value={initialStatus}
-              onChange={(e) => setInitialStatus(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="on_sale">
-                ON SALE — Langsung tampil di Katalog Publik (/user/event)
-              </option>
-              <option value="published">PUBLISHED — Terpublikasi</option>
-              <option value="draft">DRAFT — Simpan sebagai draf internal</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="flex flex-wrap gap-4">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-2xl bg-[#0080f2] px-8 py-4 text-sm font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-105 disabled:opacity-50"
-          >
-            {submitting ? "Membuat Event..." : "Simpan & Publikasikan Event"}
-          </button>
-          <Link
-            href="/admin/event"
-            className="rounded-2xl border border-slate-300 px-8 py-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            Batal
-          </Link>
         </div>
       </form>
     </div>

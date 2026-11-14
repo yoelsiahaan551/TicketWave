@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import ThemeToggle from "@/app/components/common/ThemeToggle";
+import ProfileDropdown from "@/app/components/common/ProfileDropdown";
 import { useAuth } from "@/app/context/AuthContext";
 import { useIsMounted } from "@/app/context/ThemeContext";
 import {
@@ -13,10 +15,10 @@ import {
   User,
   Settings,
   LogOut,
-  ChevronDown,
   Home,
   CalendarDays,
   Receipt,
+  Heart,
   Shield,
 } from "lucide-react";
 
@@ -25,7 +27,6 @@ export default function UserNavbar() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const mounted = useIsMounted();
   const [isOpen, setIsOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
 
   const menus = [
     {
@@ -48,6 +49,11 @@ export default function UserNavbar() {
       href: "/user/pesanan",
       icon: Receipt,
     },
+    {
+      name: "Favorit",
+      href: "/user/favorites",
+      icon: Heart,
+    },
   ];
 
   const isActive = (href) => {
@@ -55,7 +61,6 @@ export default function UserNavbar() {
   };
 
   const handleLogout = () => {
-    setProfileOpen(false);
     setIsOpen(false);
     logout();
   };
@@ -89,18 +94,23 @@ export default function UserNavbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl transition-colors">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/user/home" className="flex items-center gap-3 group">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0080f2] shadow-lg shadow-[#0080f2]/20 transition-transform duration-300 group-hover:scale-105">
-            <Ticket className="text-white" size={22} />
-          </div>
+          <Image
+            src="/logo/ticketwave.png"
+            alt="TicketWave Logo"
+            width={44}
+            height={44}
+            className="h-11 w-11 object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-sm"
+            priority
+          />
 
           <div>
-            <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+            <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               TicketWave
             </span>
-            <span className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-[#0080f2] dark:text-[#0080f2]">
+            <span className="hidden sm:block text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
               Official Ticketing
             </span>
           </div>
@@ -115,10 +125,10 @@ export default function UserNavbar() {
               <Link
                 key={menu.name}
                 href={menu.href}
-                className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
                   active
-                    ? "bg-[#0080f2] text-white shadow-md shadow-[#0080f2]/20"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0080f2] dark:hover:text-[#0080f2]"
+                    ? "bg-[#0080f2] text-white font-semibold shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 <Icon size={16} />
@@ -131,139 +141,28 @@ export default function UserNavbar() {
         {/* Right Section */}
         <div className="hidden items-center gap-3 md:flex">
           <ThemeToggle brandHover />
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setProfileOpen(!profileOpen)}
-              className="flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/60 px-3 py-1.5 transition hover:border-[#0080f2] dark:hover:border-[#0080f2]"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0080f2] text-sm font-bold text-white shadow-sm">
-                {initials}
-              </div>
-
-              <div className="hidden text-left lg:block max-w-[140px]">
-                <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                  {displayName}
-                </p>
-                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                  {roleLabel}
-                </p>
-              </div>
-
-              <ChevronDown
-                size={16}
-                className={`text-slate-500 transition-transform duration-200 ${
-                  profileOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {profileOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setProfileOpen(false)}
-                />
-                <div className="absolute right-0 top-14 z-20 w-64 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-2xl">
-                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {displayName}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      {displayEmail}
-                    </p>
-                  </div>
-
-                  <div className="py-1">
-                    {mounted && isAuthenticated && isAdmin && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-[#0080f2] dark:text-[#0080f2] transition hover:bg-[#0080f2]/10 dark:hover:bg-slate-800"
-                      >
-                        <Shield size={17} />
-                        Panel Admin
-                      </Link>
-                    )}
-
-                    <Link
-                      href="/user/profile"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <User size={17} />
-                      Profil Saya
-                    </Link>
-
-                    <Link
-                      href="/user/settings"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <Settings size={17} />
-                      Pengaturan
-                    </Link>
-                  </div>
-
-                  {mounted && isAuthenticated ? (
-                    <>
-                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-950/30"
-                      >
-                        <LogOut size={17} />
-                        Keluar
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-
-                      <div className="grid grid-cols-2 gap-2 p-2">
-                        <Link
-                          href="/login"
-                          onClick={() => setProfileOpen(false)}
-                          className="rounded-xl border border-slate-300 dark:border-slate-700 py-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          Login
-                        </Link>
-                        <Link
-                          href="/register"
-                          onClick={() => setProfileOpen(false)}
-                          className="rounded-xl bg-[#0080f2] py-2 text-center text-xs font-bold text-white shadow"
-                        >
-                          Register
-                        </Link>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <ProfileDropdown role="user" />
         </div>
 
-        {/* Mobile Button */}
-        <div className="flex items-center gap-2 md:hidden">
+        {/* Mobile Controls: Theme, Profile, and Menu */}
+        <div className="flex items-center gap-1.5 sm:gap-2 md:hidden">
           <ThemeToggle brandHover />
+          <ProfileDropdown role="user" compact />
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            aria-label="Toggle menu"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
+            {isOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-5 md:hidden shadow-2xl">
-          <nav className="flex flex-col gap-1.5">
+        <div className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 md:hidden shadow-lg">
+          <nav className="flex flex-col gap-1">
             {menus.map((menu) => {
               const Icon = menu.icon;
               const active = isActive(menu.href);
@@ -272,25 +171,25 @@ export default function UserNavbar() {
                   key={menu.name}
                   href={menu.href}
                   onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                  className={`flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
                     active
-                      ? "bg-[#0080f2] text-white shadow-md"
+                      ? "bg-slate-200 text-slate-900 font-semibold dark:bg-slate-700 dark:text-white"
                       : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`}
                 >
-                  <Icon size={19} />
+                  <Icon size={18} />
                   {menu.name}
                 </Link>
               );
             })}
 
-            <div className="my-3 border-t border-slate-200 dark:border-slate-800" />
+            <div className="my-2 border-t border-slate-200 dark:border-slate-800" />
 
-            <div className="px-4 py-2 mb-1">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">
+            <div className="px-3.5 py-1.5 mb-1">
+              <p className="text-xs font-semibold text-slate-900 dark:text-white">
                 {displayName}
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {displayEmail}
               </p>
             </div>
@@ -299,9 +198,9 @@ export default function UserNavbar() {
               <Link
                 href="/admin"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-[#0080f2] dark:text-[#0080f2] hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                <Shield size={19} />
+                <Shield size={18} />
                 Panel Admin
               </Link>
             )}
@@ -309,18 +208,18 @@ export default function UserNavbar() {
             <Link
               href="/user/profile"
               onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
-              <User size={19} />
+              <User size={18} />
               Profil Saya
             </Link>
 
             <Link
               href="/user/settings"
               onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
-              <Settings size={19} />
+              <Settings size={18} />
               Pengaturan
             </Link>
 
@@ -328,24 +227,24 @@ export default function UserNavbar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
-                <LogOut size={19} />
+                <LogOut size={18} />
                 Keluar
               </button>
             ) : (
-              <div className="mt-2 grid grid-cols-2 gap-3">
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 <Link
                   href="/login"
                   onClick={() => setIsOpen(false)}
-                  className="rounded-xl border border-slate-300 dark:border-slate-700 py-3 text-center text-sm font-bold text-slate-700 dark:text-slate-200"
+                  className="rounded-xl border border-slate-300 dark:border-slate-700 py-2 text-center text-xs font-medium text-slate-700 dark:text-slate-200"
                 >
                   Login
                 </Link>
                 <Link
                   href="/register"
                   onClick={() => setIsOpen(false)}
-                  className="rounded-xl bg-[#0080f2] py-3 text-center text-sm font-bold text-white shadow"
+                  className="rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white py-2 text-center text-xs font-medium shadow-xs"
                 >
                   Register
                 </Link>

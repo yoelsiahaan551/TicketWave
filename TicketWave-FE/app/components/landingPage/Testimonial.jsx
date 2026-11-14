@@ -36,66 +36,65 @@ export default function Testimonial() {
   return (
     <section className="py-28 bg-slate-950">
 
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
 
-          <span className="uppercase tracking-[6px] text-cyan-400 font-bold">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             TESTIMONIAL
           </span>
 
-          <h2 className="text-5xl font-black text-white mt-4">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-1">
             What People Say
           </h2>
 
-          <p className="text-slate-400 mt-5 max-w-2xl mx-auto">
+          <p className="text-slate-400 mt-2 text-sm max-w-2xl mx-auto">
             Ribuan pengguna telah menggunakan TicketWave untuk membeli tiket
             konser, festival, olahraga, dan berbagai event lainnya.
           </p>
 
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-6">
 
           {testimonials.map((item) => (
 
             <div
               key={item.id}
-              className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[30px] p-8 hover:-translate-y-3 hover:border-cyan-500 transition-all duration-500"
+              className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 hover:border-slate-700 transition"
             >
 
-              <div className="flex gap-1 mb-6">
+              <div className="flex gap-1 mb-4">
 
                 {[1,2,3,4,5].map((star)=>(
                   <Star
                     key={star}
-                    size={18}
-                    fill="#FFD700"
-                    color="#FFD700"
+                    size={15}
+                    className="fill-slate-400 text-slate-400"
                   />
                 ))}
 
               </div>
 
-              <p className="text-slate-300 leading-8 italic">
+              <p className="text-slate-300 text-sm leading-relaxed italic">
                 &ldquo;{item.review}&rdquo;
               </p>
 
-              <div className="flex items-center gap-4 mt-8">
+              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-slate-800/80">
 
                 <img
                   src={item.image}
-                  className="w-16 h-16 rounded-full object-cover border-2 border-cyan-500"
+                  className="w-10 h-10 rounded-full object-cover border border-slate-700"
                   alt={item.name}
                 />
 
                 <div>
 
-                  <h3 className="text-white font-bold text-lg">
+                  <h3 className="text-white font-medium text-sm">
                     {item.name}
                   </h3>
 
-                  <p className="text-slate-400">
+                  <p className="text-slate-400 text-xs">
                     {item.job}
                   </p>
 

@@ -22,11 +22,10 @@ import {
 } from "@/app/lib/bookingStorage";
 
 const statusStyles = {
-  paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  pending_payment:
-    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-  expired: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  paid: "border border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
+  pending_payment: "border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
+  cancelled: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
+  expired: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
 };
 
 const statusLabels = {
@@ -49,6 +48,23 @@ export default function PesananPage() {
   const loadBookings = useCallback(async () => {
     await Promise.resolve();
     setLoading(true);
+    try {
+      // 1. Ambil riwayat booking akun terautentikasi langsung dari backend
+      const res = await api.get("/user/bookings", { page: 1, per_page: 50 }, { silent: true });
+      if (res && res.success && res.data?.items) {
+        const mapped = res.data.items.map((b) => ({
+          booking: b,
+          event: b.event,
+          ticket_type: b.ticket_type,
+        }));
+        setBookings(mapped);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Fallback ke pencarian booking lokal jika tidak terautentikasi
+    }
+
     try {
       const results = await fetchAllSavedBookings(api);
       setBookings(results);
@@ -145,17 +161,17 @@ export default function PesananPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 transition-colors dark:bg-slate-950">
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#0080f2] dark:text-[#0080f2]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
               Manajemen Transaksi
             </span>
-            <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white md:text-4xl">
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
               Pesanan Saya
             </h1>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
               Lacak status pembayaran, batas waktu reservasi, dan e-ticket dari kode booking Anda secara real-time.
             </p>
           </div>
@@ -164,46 +180,46 @@ export default function PesananPage() {
             type="button"
             onClick={loadBookings}
             disabled={loading}
-            className="inline-flex w-fit items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#0080f2] hover:text-[#0070d4] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:text-[#0070d4]"
+            className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             Segarkan Status
           </button>
         </div>
 
-        {/* Lookup Bar (Track Booking Code via GET /api/checkout/<booking_code>) */}
-        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        {/* Lookup Bar */}
+        <div className="mt-6 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
-              <h2 className="text-base font-black text-slate-900 dark:text-white">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
                 Lacak atau Tambahkan Kode Booking
               </h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Masukkan kode booking resmi (contoh: <code className="font-mono font-bold">TKTW-20260405-ABC123</code>) untuk memuat detail transaksi langsung dari endpoint <code className="font-mono">GET /api/checkout/&lt;booking_code&gt;</code>.
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Masukkan kode booking resmi (contoh: <code className="font-mono font-medium">TKTW-20260405-ABC123</code>) untuk memuat transaksi.
               </p>
             </div>
 
             <form
               onSubmit={handleLookupSubmit}
-              className="flex w-full max-w-md items-center gap-2"
+              className="flex w-full max-w-md flex-col sm:flex-row items-stretch sm:items-center gap-2"
             >
               <div className="relative flex-1">
                 <Search
-                  size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={15}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
                   type="text"
                   value={lookupCode}
                   onChange={(e) => setLookupCode(e.target.value)}
                   placeholder="TKTW-YYYYMMDD-XXXXXX"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 font-mono text-sm uppercase text-slate-900 outline-none transition focus:border-[#0080f2] focus:bg-white focus:ring-2 focus:ring-[#0080f2]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 font-mono text-xs uppercase text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-[#0080f2]"
                 />
               </div>
               <button
                 type="submit"
                 disabled={lookupLoading}
-                className="shrink-0 rounded-xl bg-[#0080f2] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0070d4] disabled:opacity-60"
+                className="shrink-0 rounded-xl bg-[#0080f2] px-4 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-60"
               >
                 {lookupLoading ? "Mencari..." : "Cek Pesanan"}
               </button>
@@ -212,26 +228,22 @@ export default function PesananPage() {
 
           {lookupMessage && (
             <div
-              className={`mt-4 rounded-2xl border px-4 py-3 text-xs font-medium ${
-                lookupMessage.type === "error"
-                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-              }`}
+              className="mt-3 rounded-xl border border-slate-300 bg-slate-100 px-3.5 py-2.5 text-xs font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               {lookupMessage.text}
             </div>
           )}
 
-          <div className="mt-4 flex items-start gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-            <Info size={15} className="mt-0.5 shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+          <div className="mt-3.5 flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
             <span>
-              Backend TicketWave menggunakan sistem <strong>Guest &amp; Tokenless Booking Lookup</strong> berdasarkan <code className="font-mono">booking_code</code>. Setiap pesanan yang Anda buat di perangkat ini otomatis disimpan dan disinkronkan dengan server.
+              Backend TicketWave menggunakan sistem <strong>Guest &amp; Tokenless Booking Lookup</strong> berdasarkan <code className="font-mono text-[11px]">booking_code</code>. Setiap pesanan tersimpan disinkronkan dengan server.
             </span>
           </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="mt-8 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
           {[
             { id: "all", label: `Semua (${bookings.length})` },
             {
@@ -263,10 +275,10 @@ export default function PesananPage() {
               key={tab.id}
               type="button"
               onClick={() => setActiveFilter(tab.id)}
-              className={`whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+              className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-medium transition-colors ${
                 activeFilter === tab.id
-                  ? "bg-[#0080f2] text-white shadow-sm"
-                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  ? "bg-[#0080f2] text-white shadow-xs"
+                  : "border border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
               }`}
             >
               {tab.label}
@@ -276,11 +288,11 @@ export default function PesananPage() {
 
         {/* Loading State */}
         {loading && (
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-3">
             {[1, 2].map((n) => (
               <div
                 key={n}
-                className="h-36 animate-pulse rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
+                className="h-32 animate-pulse rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
               />
             ))}
           </div>
@@ -288,58 +300,58 @@ export default function PesananPage() {
 
         {/* Bookings List */}
         {!loading && filteredBookings.length > 0 && (
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-3.5">
             {filteredBookings.map(({ booking, event, ticket_type }) => (
               <div
                 key={booking.booking_code}
-                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900"
               >
-                <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                   {/* Left Section */}
                   <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="rounded-lg bg-slate-100 px-3 py-1 font-mono text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-[#0080f2]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                         {booking.booking_code}
                       </span>
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
                           statusStyles[booking.status] || statusStyles.expired
                         }`}
                       >
                         {statusLabels[booking.status] || booking.status}
                       </span>
                       {ticket_type?.name && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0080f2] dark:text-[#0080f2]">
-                          <Ticket size={13} />
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                          <Ticket size={12} />
                           {ticket_type.name} ({booking.quantity}x)
                         </span>
                       )}
                     </div>
 
-                    <h3 className="mt-3 text-xl font-black text-slate-900 dark:text-white">
+                    <h3 className="mt-2 text-base font-semibold text-slate-900 dark:text-white">
                       {event?.name || "Event TicketWave"}
                     </h3>
 
-                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
                       {event?.event_date && (
                         <span className="flex items-center gap-1.5">
-                          <Calendar size={14} className="text-[#0080f2] dark:text-[#0080f2]" />
+                          <Calendar size={13} className="text-slate-400" />
                           {new Date(event.event_date).toLocaleDateString("id-ID", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
                         </span>
                       )}
                       {event?.venue && (
                         <span className="flex items-center gap-1.5">
-                          <MapPin size={14} className="text-[#0080f2] dark:text-[#0080f2]" />
+                          <MapPin size={13} className="text-slate-400" />
                           {event.venue}, {event.city}
                         </span>
                       )}
                       {booking.status === "pending_payment" && booking.expired_at && (
-                        <span className="flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
-                          <Clock size={14} />
+                        <span className="flex items-center gap-1 font-medium text-slate-600 dark:text-slate-400">
+                          <Clock size={13} />
                           Batas bayar:{" "}
                           {new Date(booking.expired_at).toLocaleTimeString("id-ID", {
                             hour: "2-digit",
@@ -352,12 +364,12 @@ export default function PesananPage() {
                   </div>
 
                   {/* Right Section */}
-                  <div className="flex flex-col items-start justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center lg:flex-col lg:items-end lg:border-t-0 lg:pt-0 dark:border-slate-800">
-                    <div className=" lg:text-right">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-col items-start justify-between gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center lg:flex-col lg:items-end lg:border-t-0 lg:pt-0 dark:border-slate-800">
+                    <div className="lg:text-right">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         Total ({booking.quantity} Tiket)
                       </p>
-                      <p className="text-xl font-black text-slate-900 dark:text-white">
+                      <p className="text-base font-bold text-[#0080f2]">
                         {formatRupiah(booking.total_price)}
                       </p>
                     </div>
@@ -368,7 +380,7 @@ export default function PesananPage() {
                           type="button"
                           onClick={() => handleCancelOrder(booking.booking_code)}
                           disabled={cancellingCode === booking.booking_code}
-                          className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                          className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                         >
                           {cancellingCode === booking.booking_code
                             ? "Membatalkan..."
@@ -380,17 +392,17 @@ export default function PesananPage() {
                         type="button"
                         onClick={() => handleRemoveFromDevice(booking.booking_code)}
                         title="Hapus dari daftar perangkat ini"
-                        className="rounded-xl border border-slate-200 p-2.5 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 dark:border-slate-800 dark:hover:bg-red-950/30"
+                        className="rounded-xl border border-slate-200/80 p-2 text-slate-400 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-white"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
 
                       <Link
                         href={`/user/pesanan/${booking.booking_code}`}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#0080f2] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0070d4]"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-3.5 py-1.5 text-xs font-medium text-white shadow-xs transition"
                       >
                         Lihat Detail
-                        <ArrowRight size={15} />
+                        <ArrowRight size={13} />
                       </Link>
                     </div>
                   </div>
@@ -402,22 +414,22 @@ export default function PesananPage() {
 
         {/* Empty State */}
         {!loading && filteredBookings.length === 0 && (
-          <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
-              <CreditCard size={30} />
+          <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+              <CreditCard size={24} />
             </div>
-            <h3 className="mt-4 text-xl font-black text-slate-900 dark:text-white">
+            <h3 className="mt-3 text-base font-semibold text-slate-900 dark:text-white">
               Belum Ada Pesanan Tersimpan
             </h3>
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+            <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
               Anda belum memiliki pesanan dengan filter ini di perangkat Anda. Buat pesanan baru dari halaman katalog event atau masukkan kode booking Anda pada kolom pelacakan di atas.
             </p>
             <Link
               href="/user/event"
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#0080f2] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#0080f2]/25 transition hover:bg-[#0070d4]"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-4 py-2 text-xs font-medium text-white shadow-xs transition"
             >
               Jelajahi Event Aktif
-              <ArrowRight size={16} />
+              <ArrowRight size={14} />
             </Link>
           </div>
         )}

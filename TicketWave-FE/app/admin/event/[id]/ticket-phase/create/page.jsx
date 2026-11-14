@@ -73,132 +73,152 @@ function CreateTicketPhaseContent() {
         href={`/admin/event/${eventId}/ticket-phase${
           ticketTypeId ? `?ticketTypeId=${ticketTypeId}` : ""
         }`}
-        className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#0080f2] dark:text-slate-400"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
       >
-        <ArrowLeft size={17} />
+        <ArrowLeft size={14} />
         Kembali ke Daftar Fase Tiket
       </Link>
 
       <div>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-white">
           Tambah Fase Harga Tiket
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Terhubung dengan <code className="font-mono">POST /api/ticket-types/&lt;ticket_type_id&gt;/phases</code>. Sistem otomatis memvalidasi tumpang tindih tanggal (Date Overlap Check).
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Terhubung dengan <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">POST /api/ticket-types/&lt;ticket_type_id&gt;/phases</code>. Sistem otomatis memvalidasi tumpang tindih tanggal.
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="max-w-2xl space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      >
-        {error && (
-          <div className="flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-            <AlertCircle size={18} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
+      <form onSubmit={handleSubmit} className="w-full">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          {/* Main Info (Left 8 cols) */}
+          <div className="space-y-6 xl:col-span-8">
+            <div className="space-y-5 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                Pengaturan Periode &amp; Diskon
+              </h2>
+
+              {error && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-slate-300 bg-slate-100 p-3 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Kategori Tiket *
+                </label>
+                <select
+                  required
+                  value={ticketTypeId}
+                  onChange={(e) => setTicketTypeId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                >
+                  <option value="">-- Pilih Kategori Tiket --</option>
+                  {ticketTypes.map((tt) => (
+                    <option key={tt.id} value={tt.id}>
+                      {tt.name} (Rp {Number(tt.base_price).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Nama Fase *
+                </label>
+                <select
+                  value={phaseName}
+                  onChange={(e) => setPhaseName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                >
+                  <option value="early_bird">Early Bird</option>
+                  <option value="presale">Presale</option>
+                  <option value="normal">Normal</option>
+                </select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Tanggal Mulai (Start Date) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Tanggal Berakhir (End Date) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Persentase Diskon (0 – 100%) *
+                </label>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    required
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    className="w-32 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
+                  />
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    %
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Isi 0% untuk fase harga normal tanpa potongan.
+                </p>
+              </div>
+            </div>
           </div>
-        )}
 
-        <div>
-          <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-            Kategori Tiket *
-          </label>
-          <select
-            required
-            value={ticketTypeId}
-            onChange={(e) => setTicketTypeId(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-          >
-            <option value="">-- Pilih Kategori Tiket --</option>
-            {ticketTypes.map((tt) => (
-              <option key={tt.id} value={tt.id}>
-                {tt.name} (Rp {Number(tt.base_price).toLocaleString("id-ID")})
-              </option>
-            ))}
-          </select>
-        </div>
+          {/* Side Panel (Right 4 cols) */}
+          <div className="space-y-6 xl:col-span-4">
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs xl:sticky xl:top-6 dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Aksi Penyimpanan
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Fase yang aktif pada tanggal hari ini otomatis menjadi harga penawaran di halaman checkout publik.
+              </p>
 
-        <div>
-          <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-            Nama Fase *
-          </label>
-          <select
-            value={phaseName}
-            onChange={(e) => setPhaseName(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-          >
-            <option value="early_bird">Early Bird</option>
-            <option value="presale">Presale</option>
-            <option value="normal">Normal</option>
-          </select>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-              Tanggal Mulai (Start Date) *
-            </label>
-            <input
-              type="date"
-              required
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
+              <div className="space-y-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 disabled:opacity-50"
+                >
+                  {submitting ? "Menyimpan..." : "Simpan Fase Harga"}
+                </button>
+                <Link
+                  href={`/admin/event/${eventId}/ticket-phase${
+                    ticketTypeId ? `?ticketTypeId=${ticketTypeId}` : ""
+                  }`}
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Batal
+                </Link>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-              Tanggal Berakhir (End Date) *
-            </label>
-            <input
-              type="date"
-              required
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-bold text-slate-900 dark:text-white">
-            Persentase Diskon (0 – 100%) *
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              required
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              className="w-32 rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-            <span className="text-xl font-black text-slate-700 dark:text-slate-300">
-              %
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-slate-500">
-            Isi 0% untuk fase harga normal tanpa potongan.
-          </p>
-        </div>
-
-        <div className="flex gap-4 pt-4">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-2xl bg-[#0080f2] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-105 disabled:opacity-50"
-          >
-            {submitting ? "Menyimpan..." : "Simpan Fase Harga"}
-          </button>
-          <Link
-            href={`/admin/event/${eventId}/ticket-phase${
-              ticketTypeId ? `?ticketTypeId=${ticketTypeId}` : ""
-            }`}
-            className="rounded-2xl border border-slate-300 px-8 py-3.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            Batal
-          </Link>
         </div>
       </form>
     </div>
@@ -209,7 +229,7 @@ export default function CreateTicketPhasePage() {
   return (
     <Suspense
       fallback={
-        <div className="py-12 text-center text-slate-500">
+        <div className="py-12 text-center text-xs text-slate-500">
           Memuat formulir fase tiket...
         </div>
       }

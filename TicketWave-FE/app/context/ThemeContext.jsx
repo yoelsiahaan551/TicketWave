@@ -44,9 +44,17 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    // LANDING PAGE RULE:
-    // Landing page '/' MUST NOT take theme toggle and stays in its original design
-    if (pathname === "/") {
+    // PERMANENT THEME PAGES RULE:
+    // Landing page ('/'), Login ('/login'), and Register ('/register') MUST NOT take
+    // dynamic theme switching and strictly stay in their single, consistent, permanent theme design.
+    const isPermanentThemePage =
+      pathname === "/" ||
+      pathname === "/login" ||
+      pathname === "/register" ||
+      pathname?.startsWith("/login/") ||
+      pathname?.startsWith("/register/");
+
+    if (isPermanentThemePage) {
       document.documentElement.classList.remove("dark");
       document.documentElement.removeAttribute("data-theme");
       return;

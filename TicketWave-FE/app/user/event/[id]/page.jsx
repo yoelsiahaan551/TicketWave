@@ -159,14 +159,14 @@ export default function EventDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-12">
-        <div className="h-80 animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800" />
-        <div className="mt-10 grid gap-10 lg:grid-cols-[1.5fr_1fr]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
+        <div className="h-72 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
           <div className="space-y-4">
-            <div className="h-24 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
-            <div className="h-40 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+            <div className="h-20 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="h-36 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
           </div>
-          <div className="h-80 animate-pulse rounded-3xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-72 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
         </div>
       </div>
     );
@@ -174,22 +174,22 @@ export default function EventDetailPage() {
 
   if (!event) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-20">
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-800 dark:bg-slate-900">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
-            <AlertTriangle size={30} />
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center dark:border-slate-800 dark:bg-slate-900">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+            <AlertTriangle size={24} />
           </div>
-          <h1 className="mt-5 text-xl font-black text-slate-900 dark:text-white">
+          <h1 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">
             Event tidak ditemukan atau tidak sedang dijual
           </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
             {errorMsg || "Hanya event dengan status on_sale yang dapat diakses secara publik."}
           </p>
           <Link
             href="/user/event"
-            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-[#0080f2] px-6 py-3.5 font-bold text-white"
+            className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={14} />
             Kembali ke Daftar Event
           </Link>
         </div>
@@ -234,18 +234,18 @@ export default function EventDetailPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
       {/* Kembali */}
       <Link
         href="/user/event"
-        className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#0080f2] dark:text-slate-400 dark:hover:text-[#0080f2]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
       >
         <ArrowLeft size={17} />
         Kembali ke Daftar Event
       </Link>
 
       {/* Banner */}
-      <div className="relative mt-6 h-72 overflow-hidden rounded-3xl md:h-96">
+      <div className="relative mt-4 h-64 overflow-hidden rounded-2xl md:h-80">
         <img
           src={event.banner_url || event.poster_url || FALLBACK_BANNER}
           alt={event.name}
@@ -253,49 +253,49 @@ export default function EventDetailPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 w-full p-6 md:p-10">
+        <div className="absolute bottom-0 left-0 w-full p-5 md:p-8">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#0080f2] px-4 py-1.5 text-xs font-bold text-white shadow">
+            <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-medium text-slate-900 shadow-xs">
               {event.event_type === "festival"
                 ? `Festival (${event.days_count || 1} Hari)`
                 : "Single Event"}
             </span>
             {event.artist_name && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white/90 backdrop-blur">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur">
                 <Music2 size={13} />
                 {event.artist_name}
               </span>
             )}
           </div>
-          <h1 className="mt-4 text-3xl font-black text-white md:text-5xl">
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-white md:text-4xl">
             {event.name}
           </h1>
         </div>
       </div>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[1.5fr_1fr]">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
         {/* Info Event */}
         <div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <CalendarDays size={20} className="mt-0.5 shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <CalendarDays size={18} className="mt-0.5 shrink-0 text-slate-400" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Tanggal Pelaksanaan
                 </p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                <p className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
                   {formatDate(event.event_date)}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <Clock size={20} className="mt-0.5 shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <Clock size={18} className="mt-0.5 shrink-0 text-slate-400" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Waktu / Durasi
                 </p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                <p className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
                   {event.event_time
                     ? `${event.event_time.slice(0, 5)} WIB`
                     : event.event_type === "festival"
@@ -305,25 +305,25 @@ export default function EventDetailPage() {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <MapPin size={20} className="mt-0.5 shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <MapPin size={18} className="mt-0.5 shrink-0 text-slate-400" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Venue Lokasi
                 </p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                <p className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
                   {event.venue}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <Building2 size={20} className="mt-0.5 shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <Building2 size={18} className="mt-0.5 shrink-0 text-slate-400" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Kota &amp; Penyelenggara
                 </p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                <p className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
                   {event.city}
                   {agency?.name ? ` • ${agency.name}` : ""}
                 </p>
@@ -332,32 +332,32 @@ export default function EventDetailPage() {
           </div>
 
           {/* Deskripsi */}
-          <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">
+          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
               Tentang Event
             </h2>
-            <p className="mt-3 whitespace-pre-line leading-8 text-slate-600 dark:text-slate-300">
+            <p className="mt-2 text-xs sm:text-sm whitespace-pre-line leading-relaxed text-slate-600 dark:text-slate-300">
               {event.description || "Deskripsi lengkap event belum ditambahkan oleh penyelenggara."}
             </p>
           </div>
 
           {/* Lineup Festival (jika ada) */}
           {lineup && lineup.length > 0 && (
-            <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-              <h2 className="flex items-center gap-2 text-xl font-black text-slate-900 dark:text-white">
-                <Music2 size={20} className="text-[#0080f2] dark:text-[#0080f2]" />
+            <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+                <Music2 size={18} className="text-slate-400" />
                 Lineup Festival
               </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                 {lineup.map((item) => (
                   <div
                     key={item.id || `${item.day_number}-${item.artist_name}`}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/60"
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-800/60"
                   >
-                    <span className="font-bold text-slate-900 dark:text-white">
+                    <span className="text-xs font-medium text-slate-900 dark:text-white">
                       {item.artist_name}
                     </span>
-                    <span className="rounded-full bg-[#0080f2]/15 px-3 py-1 text-xs font-bold text-[#0080f2] dark:bg-[#0080f2]/20 dark:text-[#0080f2]">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                       Hari ke-{item.day_number}
                     </span>
                   </div>
@@ -368,24 +368,24 @@ export default function EventDetailPage() {
 
           {/* Informasi Penyelenggara (Agency) */}
           {agency && (
-            <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
+            <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-slate-400">
                 Penyelenggara Resmi (Agency)
               </h3>
-              <div className="mt-4 flex items-center gap-4">
+              <div className="mt-3 flex items-center gap-3">
                 {agency.logo_url ? (
                   <img
                     src={agency.logo_url}
                     alt={agency.name}
-                    className="h-14 w-14 rounded-2xl border border-slate-200 object-cover dark:border-slate-700"
+                    className="h-11 w-11 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
                   />
                 ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0080f2] text-xl font-black text-white">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white dark:bg-slate-700">
                     {agency.name?.charAt(0) || "A"}
                   </div>
                 )}
                 <div>
-                  <p className="text-lg font-bold text-slate-900 dark:text-white">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {agency.name}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -400,26 +400,26 @@ export default function EventDetailPage() {
         {/* Pilih Tiket */}
         <div
           id="pilih-tiket"
-          className="h-fit scroll-mt-28 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-28"
+          className="h-fit scroll-mt-28 rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-28"
         >
           <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
-              <Ticket size={20} className="text-[#0080f2] dark:text-[#0080f2]" />
+            <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+              <Ticket size={18} className="text-slate-400" />
               Pilih Kategori Tiket
             </h2>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              Maks. 10 tiket / order
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Maks. 10 tiket
             </span>
           </div>
 
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <Info size={14} className="shrink-0 text-[#0080f2] dark:text-[#0080f2]" />
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <Info size={13} className="shrink-0 text-slate-400" />
             Pilih 1 kategori tiket untuk setiap transaksi checkout.
           </p>
 
-          <div className="mt-5 space-y-4">
+          <div className="mt-4 space-y-3">
             {ticketTypes.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Kategori tiket belum tersedia untuk event ini.
               </p>
             ) : (
@@ -436,23 +436,23 @@ export default function EventDetailPage() {
                   <div
                     key={t.id}
                     onClick={() => !habis && handleSelectTicket(t)}
-                    className={`cursor-pointer rounded-2xl border p-4 transition ${
+                    className={`cursor-pointer rounded-xl border p-3.5 transition ${
                       habis
                         ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-slate-800 dark:bg-slate-800/40"
                         : isSelected
-                        ? "border-[#0080f2] bg-[#0080f2]/10 ring-2 ring-[#0080f2]/20 dark:border-[#0080f2] dark:bg-[#0080f2]/20"
-                        : "border-slate-200 hover:border-[#0080f2] dark:border-slate-800 dark:hover:border-slate-700"
+                        ? "border-[#0080f2] bg-blue-50/50 ring-1 ring-[#0080f2] dark:border-[#0080f2] dark:bg-blue-950/40 dark:ring-[#0080f2]"
+                        : "border-slate-200 hover:border-slate-300 dark:border-slate-800"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-bold text-slate-900 dark:text-white">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">
                             {t.name}
                           </p>
                           {t.active_phase && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              <Tag size={11} />
+                            <span className="inline-flex items-center gap-1 rounded-full border border-blue-200/60 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
+                              <Tag size={10} />
                               {t.active_phase.phase_name?.replace("_", " ")}{" "}
                               {hasDiscount
                                 ? `(-${t.active_phase.discount_percent}%)`
@@ -461,7 +461,7 @@ export default function EventDetailPage() {
                           )}
                         </div>
                         {t.description && (
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                             {t.description}
                           </p>
                         )}
@@ -473,38 +473,36 @@ export default function EventDetailPage() {
                             {formatPrice(basePrice)}
                           </p>
                         )}
-                        <p className="font-black text-[#0080f2] dark:text-[#0080f2]">
+                        <p className="text-sm font-bold text-[#0080f2]">
                           {formatPrice(effectivePrice)}
                         </p>
                       </div>
                     </div>
 
                     <div
-                      className="mt-4 flex items-center justify-between"
+                      className="mt-3 flex items-center justify-between"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <p
-                        className={`text-xs font-semibold ${
+                        className={`text-xs font-medium ${
                           habis
-                            ? "text-red-500"
-                            : avail <= 20
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-emerald-600 dark:text-emerald-400"
+                            ? "text-slate-400 dark:text-slate-500"
+                            : "text-slate-600 dark:text-slate-400"
                         }`}
                       >
                         {habis ? "Kuota habis" : `Tersedia ${avail} tiket`}
                       </p>
 
                       {!habis && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(t, -1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
-                            <Minus size={14} />
+                            <Minus size={13} />
                           </button>
-                          <span className="w-6 text-center text-sm font-bold text-slate-900 dark:text-white">
+                          <span className="w-5 text-center text-xs font-semibold text-slate-900 dark:text-white">
                             {selectedTicketId === t.id ? quantity : 0}
                           </span>
                           <button
@@ -514,9 +512,9 @@ export default function EventDetailPage() {
                               selectedTicketId === t.id &&
                               quantity >= Math.min(avail, 10)
                             }
-                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0080f2] text-white transition hover:scale-105 disabled:opacity-40"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0080f2] text-white transition hover:bg-[#0070d4] disabled:opacity-40"
                           >
-                            <Plus size={14} />
+                            <Plus size={13} />
                           </button>
                         </div>
                       )}
@@ -528,12 +526,12 @@ export default function EventDetailPage() {
           </div>
 
           {/* Ringkasan */}
-          <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 dark:text-white">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Estimasi Total
               </span>
-              <span className="text-xl font-black text-[#0080f2] dark:text-[#0080f2]">
+              <span className="text-base font-bold text-[#0080f2]">
                 {formatPrice(total)}
               </span>
             </div>
@@ -542,7 +540,7 @@ export default function EventDetailPage() {
               type="button"
               onClick={lanjutCheckout}
               disabled={!selectedTicket || quantity <= 0}
-              className="mt-5 w-full rounded-2xl bg-[#0080f2] py-4 font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              className="mt-4 w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] py-3 text-xs sm:text-sm font-medium text-white shadow-xs transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               {selectedTicket && quantity > 0
                 ? `Lanjut ke Checkout (${quantity} × ${selectedTicket.name})`

@@ -36,13 +36,13 @@ export default function PromoCountdown() {
   }, [targetDate]);
 
   return (
-    <section className="py-28 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 overflow-hidden relative">
+    <section className="py-28 bg-slate-950 overflow-hidden relative">
 
-      {/* Glow */}
-      <div className="absolute w-96 h-96 bg-cyan-500/20 blur-[120px] rounded-full -left-20 top-10"></div>
-      <div className="absolute w-80 h-80 bg-blue-600/20 blur-[120px] rounded-full right-0 bottom-0"></div>
+      {/* Subtle Glow */}
+      <div className="absolute w-96 h-96 bg-slate-500/5 blur-[120px] rounded-full -left-20 top-10"></div>
+      <div className="absolute w-80 h-80 bg-slate-500/5 blur-[120px] rounded-full right-0 bottom-0"></div>
 
-      <div className="relative max-w-7xl mx-auto px-6">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
@@ -50,19 +50,19 @@ export default function PromoCountdown() {
 
           <div>
 
-            <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-cyan-500/20 text-cyan-300 mb-8">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/40 border border-blue-900/50 text-[#0080f2] text-xs font-semibold tracking-wider mb-6">
 
-              <TicketPercent size={20} />
+              <TicketPercent size={16} />
 
               FLASH SALE
 
             </div>
 
-            <h2 className="text-6xl font-black text-white leading-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
 
               Save Up To
 
-              <span className="block text-cyan-400">
+              <span className="block text-[#0080f2] font-bold">
 
                 50% OFF
 
@@ -70,7 +70,7 @@ export default function PromoCountdown() {
 
             </h2>
 
-            <p className="text-slate-300 mt-8 leading-8 text-lg">
+            <p className="text-slate-300 mt-4 leading-relaxed text-sm">
 
               Dapatkan potongan harga spesial untuk konser,
               festival, olahraga, dan berbagai event favoritmu.
@@ -78,11 +78,11 @@ export default function PromoCountdown() {
 
             </p>
 
-            <button className="mt-10 px-8 py-4 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-xl hover:scale-105 transition flex items-center gap-3">
+            <button className="mt-8 px-6 py-3 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white font-medium shadow-xs transition flex items-center gap-2 text-sm">
 
               Claim Discount
 
-              <ArrowRight size={20} />
+              <ArrowRight size={16} />
 
             </button>
 
@@ -90,7 +90,7 @@ export default function PromoCountdown() {
 
           {/* RIGHT */}
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
 
             {[
               { label: "Days", value: timeLeft.days },
@@ -101,14 +101,14 @@ export default function PromoCountdown() {
 
               <div
                 key={item.label}
-                className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-[30px] p-10 text-center hover:border-cyan-400 transition"
+                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 text-center hover:border-[#0080f2]/50 transition"
               >
 
-                <h2 className="text-6xl font-black text-white">
+                <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
                   {item.value}
                 </h2>
 
-                <p className="text-cyan-300 mt-4 uppercase tracking-[3px]">
+                <p className="text-slate-300 mt-2 text-xs uppercase tracking-wider font-medium">
                   {item.label}
                 </p>
 

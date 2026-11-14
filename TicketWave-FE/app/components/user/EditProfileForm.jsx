@@ -37,25 +37,25 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
   };
 
   const inputClass =
-    "w-full rounded-2xl border border-slate-300 px-5 py-3.5 text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-2 focus:ring-[#0080f2]/20";
+    "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] placeholder:text-slate-400";
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+      className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900"
     >
-      <h3 className="text-lg font-black text-slate-900">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white">
         Edit Profil
       </h3>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Perubahan disimpan melalui API profile. Endpoint belum
         tersedia — tombol simpan akan menampilkan pesan bahwa
         backend belum siap.
       </p>
 
-      <div className="mt-6 space-y-5">
+      <div className="mt-6 space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-900">
+          <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
             Nama Lengkap
           </label>
           <input
@@ -65,7 +65,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
             className={inputClass}
           />
           {errors.nama && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-500">
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
               <AlertCircle size={13} />
               {errors.nama}
             </p>
@@ -73,7 +73,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-900">
+          <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
             Email
           </label>
           <input
@@ -83,7 +83,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
             className={inputClass}
           />
           {errors.email && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-500">
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
               <AlertCircle size={13} />
               {errors.email}
             </p>
@@ -91,7 +91,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-900">
+          <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
             Nomor Telepon
           </label>
           <input
@@ -102,7 +102,7 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
             className={inputClass}
           />
           {errors.telepon && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-500">
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
               <AlertCircle size={13} />
               {errors.telepon}
             </p>
@@ -113,9 +113,9 @@ export default function EditProfileForm({ user, onSubmit, saving }) {
       <button
         type="submit"
         disabled={saving}
-        className="mt-7 flex items-center gap-2 rounded-2xl bg-[#0080f2] px-6 py-3.5 font-bold text-white shadow-lg shadow-[#0080f2]/20 transition hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
+        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#0080f2] px-4 py-2.5 text-sm font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-60"
       >
-        <Save size={18} />
+        <Save size={16} />
         {saving ? "Menyimpan..." : "Simpan Perubahan"}
       </button>
     </form>

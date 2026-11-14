@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Ticket, Menu, X } from "lucide-react";
+import Image from "next/image";
+import { Search, Menu, X, ArrowRight, User } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/app/context/AuthContext";
+import { useIsMounted } from "@/app/context/ThemeContext";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scroll, setScroll] = useState(false);
+  const { user, isAuthenticated, isAdmin, isOfficer } = useAuth();
+  const mounted = useIsMounted();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,198 +19,210 @@ export default function Navbar() {
     };
 
     window.addEventListener("scroll", handleScroll);
-
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const dashboardHref =
+    mounted && isAuthenticated
+      ? isAdmin
+        ? "/admin"
+        : isOfficer
+        ? "/officer"
+        : "/user/home"
+      : null;
 
   return (
     <header
       className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
         scroll
-          ? "bg-white/80 backdrop-blur-xl shadow-lg"
+          ? "bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-xs"
           : "bg-transparent"
       }`}
     >
-      <div className="max-w-7xl mx-auto h-20 px-6 flex items-center justify-between">
-
+      <div className="max-w-7xl mx-auto h-20 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Logo */}
-
         <Link
           href="/"
-          className="flex items-center gap-3 font-bold text-2xl"
+          className="flex items-center gap-3 font-semibold text-xl tracking-tight"
         >
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg">
-
-            <Ticket className="text-white" size={22} />
-
-          </div>
-
+          <Image
+            src="/logo/ticketwave.png"
+            alt="TicketWave Logo"
+            width={40}
+            height={40}
+            className="h-10 w-10 object-contain drop-shadow-xs"
+            priority
+          />
           <span
             className={`transition ${
-              scroll ? "text-slate-900" : "text-white"
+              scroll ? "text-slate-900 dark:text-white" : "text-white"
             }`}
           >
             TicketWave
           </span>
-
         </Link>
 
         {/* Menu Desktop */}
-
-        <nav className="hidden lg:flex items-center gap-10">
-
+        <nav className="hidden lg:flex items-center gap-8">
           <Link
             href="/"
-            className={`font-medium transition hover:text-cyan-500 ${
-              scroll ? "text-slate-700" : "text-white"
+            className={`text-sm font-medium transition hover:text-slate-900 dark:hover:text-white ${
+              scroll ? "text-slate-700 dark:text-slate-200" : "text-white"
             }`}
           >
             Home
           </Link>
-
           <Link
-            href="/event"
-            className={`font-medium transition hover:text-cyan-500 ${
-              scroll ? "text-slate-700" : "text-white"
+            href="/user/event"
+            className={`text-sm font-medium transition hover:text-slate-900 dark:hover:text-white ${
+              scroll ? "text-slate-700 dark:text-slate-200" : "text-white"
             }`}
           >
             Event
           </Link>
-
           <Link
-            href="/ticket"
-            className={`font-medium transition hover:text-cyan-500 ${
-              scroll ? "text-slate-700" : "text-white"
+            href="/user/ticket"
+            className={`text-sm font-medium transition hover:text-slate-900 dark:hover:text-white ${
+              scroll ? "text-slate-700 dark:text-slate-200" : "text-white"
             }`}
           >
             Ticket
           </Link>
-
           <Link
-            href="/pesanan"
-            className={`font-medium transition hover:text-cyan-500 ${
-              scroll ? "text-slate-700" : "text-white"
+            href="/user/pesanan"
+            className={`text-sm font-medium transition hover:text-slate-900 dark:hover:text-white ${
+              scroll ? "text-slate-700 dark:text-slate-200" : "text-white"
             }`}
           >
             Pesanan Saya
           </Link>
-
         </nav>
 
-        {/* Search */}
-
+        {/* Search Desktop */}
         <div className="hidden lg:flex items-center relative">
-
           <Search
-            size={18}
-            className="absolute left-4 text-gray-400"
+            size={16}
+            className="absolute left-3.5 text-slate-400"
           />
-
           <input
             type="text"
             placeholder="Search event..."
-            className="w-72 h-11 pl-11 pr-5 rounded-full bg-white shadow-md border outline-none focus:ring-2 focus:ring-cyan-500 transition"
+            className="w-60 h-10 pl-10 pr-4 text-xs rounded-xl bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-1 focus:ring-[#0080f2] focus:border-[#0080f2] shadow-xs transition dark:text-white"
           />
-
         </div>
 
-        {/* Button */}
-
+        {/* Button Desktop */}
         <div className="hidden lg:flex items-center gap-3">
-
-          <Link
-            href="/login"
-            className={`px-5 py-2 rounded-full transition ${
-              scroll
-                ? "text-slate-700 hover:bg-slate-100"
-                : "text-white hover:bg-white/10"
-            }`}
-          >
-            Login
-          </Link>
-
-          <Link
-            href="/register"
-            className="px-6 py-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg hover:scale-105 transition-all duration-300"
-          >
-            Register
-          </Link>
-
+          {dashboardHref ? (
+            <Link
+              href={dashboardHref}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white shadow-xs transition"
+            >
+              <User size={14} />
+              <span>{user?.name ? user.name.split(" ")[0] : "Dashboard"}</span>
+              <ArrowRight size={13} />
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className={`px-4 py-2 text-xs font-medium rounded-xl transition ${
+                  scroll
+                    ? "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    : "text-white hover:bg-white/10"
+                }`}
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                className="px-4 py-2 text-xs font-medium rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white shadow-xs transition"
+              >
+                Register
+              </Link>
+            </>
+          )}
         </div>
 
-        {/* Mobile Button */}
-
+        {/* Mobile Button Toggle */}
         <button
           onClick={() => setOpen(!open)}
-          className={`lg:hidden ${
-            scroll ? "text-black" : "text-white"
+          className={`lg:hidden p-2 rounded-xl transition ${
+            scroll
+              ? "text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+              : "text-white hover:bg-white/10"
           }`}
+          aria-label="Toggle menu"
         >
-          {open ? <X size={28} /> : <Menu size={28} />}
+          {open ? <X size={24} /> : <Menu size={24} />}
         </button>
-
       </div>
 
-      {/* Mobile Menu */}
-
+      {/* Mobile Menu Drawer */}
       {open && (
-
-        <div className="lg:hidden bg-white shadow-2xl border-t">
-
-          <div className="flex flex-col p-6 gap-5">
-
+        <div className="lg:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-lg border-b border-slate-200 dark:border-slate-800 transition-colors">
+          <div className="flex flex-col p-6 gap-3.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200">
             <Link
               href="/"
               onClick={() => setOpen(false)}
+              className="py-1 hover:text-slate-900 dark:hover:text-white transition"
             >
               Home
             </Link>
-
             <Link
-              href="/event"
+              href="/user/event"
               onClick={() => setOpen(false)}
+              className="py-1 hover:text-slate-900 dark:hover:text-white transition"
             >
               Event
             </Link>
-
             <Link
-              href="/ticket"
+              href="/user/ticket"
               onClick={() => setOpen(false)}
+              className="py-1 hover:text-slate-900 dark:hover:text-white transition"
             >
               Ticket
             </Link>
-
             <Link
-              href="/pesanan"
+              href="/user/pesanan"
               onClick={() => setOpen(false)}
+              className="py-1 hover:text-slate-900 dark:hover:text-white transition"
             >
               Pesanan Saya
             </Link>
 
-            <hr />
+            <hr className="border-slate-100 dark:border-slate-800 my-1" />
 
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="text-center rounded-xl border border-slate-300 py-3 font-semibold hover:bg-slate-100 transition"
-            >
-              Login
-            </Link>
-
-            <Link
-              href="/register"
-              onClick={() => setOpen(false)}
-              className="text-center rounded-xl py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold"
-            >
-              Register
-            </Link>
-
+            {dashboardHref ? (
+              <Link
+                href={dashboardHref}
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center gap-2 text-center rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white py-2.5 font-medium shadow-xs transition"
+              >
+                <User size={15} />
+                <span>Buka Dashboard ({user?.role?.toUpperCase() || "USER"})</span>
+              </Link>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="text-center rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setOpen(false)}
+                  className="text-center rounded-xl py-2.5 bg-[#0080f2] hover:bg-[#0070d4] text-white font-medium shadow-xs transition"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
           </div>
-
         </div>
-
       )}
-
     </header>
   );
 }

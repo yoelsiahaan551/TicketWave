@@ -4,20 +4,20 @@ import Link from "next/link";
 
 export default function LoginForm() {
   return (
-    <form className="space-y-6">
+    <form className="space-y-4">
 
       {/* Email */}
 
       <div>
 
-        <label className="mb-2 block font-semibold text-slate-900">
+        <label className="mb-1.5 block text-xs font-medium text-slate-700">
           Email Address
         </label>
 
         <input
           type="email"
           placeholder="you@example.com"
-          className="h-14 w-full rounded-2xl border border-slate-300 px-5 outline-none transition-all focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+          className="h-10 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2]"
         />
 
       </div>
@@ -26,27 +26,27 @@ export default function LoginForm() {
 
       <div>
 
-        <label className="mb-2 block font-semibold text-slate-900">
+        <label className="mb-1.5 block text-xs font-medium text-slate-700">
           Password
         </label>
 
         <input
           type="password"
           placeholder="••••••••"
-          className="h-14 w-full rounded-2xl border border-slate-300 px-5 outline-none transition-all focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+          className="h-10 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2]"
         />
 
       </div>
 
       {/* Remember */}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between text-xs">
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-slate-600">
 
           <input
             type="checkbox"
-            className="h-4 w-4 rounded"
+            className="rounded border-slate-300 text-[#0080f2] focus:ring-[#0080f2]"
           />
 
           Remember me
@@ -55,7 +55,7 @@ export default function LoginForm() {
 
         <Link
           href="#"
-          className="font-medium text-cyan-600 hover:text-cyan-700"
+          className="font-medium text-[#0080f2] hover:underline"
         >
           Forgot Password?
         </Link>
@@ -65,20 +65,20 @@ export default function LoginForm() {
       {/* Login */}
 
       <button
-        className="h-14 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-lg font-semibold text-white shadow-xl transition-all duration-300 hover:scale-[1.02]"
+        className="h-11 w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-sm font-medium text-white shadow-xs transition"
       >
         Login
       </button>
 
       {/* Register */}
 
-      <p className="text-center text-slate-700">
+      <p className="text-center text-xs text-slate-500">
 
         Don&apos;t have an account?{" "}
 
         <Link
           href="/register"
-          className="font-semibold text-cyan-600"
+          className="font-medium text-[#0080f2] hover:underline"
         >
           Register
         </Link>

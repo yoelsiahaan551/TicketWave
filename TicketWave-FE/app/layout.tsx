@@ -1,23 +1,21 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { ThemeProvider } from "@/app/context/ThemeContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: "TicketWave — Booking Tiket Event",
   description:
     "TicketWave adalah platform booking tiket konser dan festival terlengkap di Indonesia.",
+  icons: {
+    icon: "/logo/ticketwave.png",
+  },
 };
 
 export default function RootLayout({
@@ -29,16 +27,18 @@ export default function RootLayout({
     <html
       lang="id"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased font-sans"
     >
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
                   var p = window.location.pathname;
-                  if (p !== '/') {
+                  var isPerm = p === '/' || p === '/login' || p === '/register' || p.indexOf('/login') === 0 || p.indexOf('/register') === 0;
+                  if (!isPerm) {
                     var t = localStorage.getItem('ticketwave_theme');
                     if (t === 'dark') {
                       document.documentElement.classList.add('dark');

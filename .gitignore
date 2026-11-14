@@ -1,0 +1,45 @@
+# Root .gitignore for TicketWave Frontend Repository (Web & Mobile)
+
+# Backend (Excluded from frontend repository)
+/TicketWave-BE/
+TicketWave-BE/
+
+# Dependencies
+**/node_modules/
+node_modules/
+
+# Next.js & Web builds
+**/.next/
+.next/
+web/.next/
+web/out/
+web/build/
+
+# Expo & Mobile builds
+**/.expo/
+.expo/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+
+# Environment files
+**/.env*.local
+**/.env.local
+**/.env
+!.env.example
+!web/.env.example
+
+# Debug and logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+*.pem

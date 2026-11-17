@@ -37,6 +37,7 @@ const statusLabels = {
 
 export default function PesananPage() {
   const [bookings, setBookings] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
 
@@ -48,28 +49,14 @@ export default function PesananPage() {
   const loadBookings = useCallback(async () => {
     await Promise.resolve();
     setLoading(true);
+    setLoadError(null);
     try {
-      // 1. Ambil riwayat booking akun terautentikasi langsung dari backend
-      const res = await api.get("/user/bookings", { page: 1, per_page: 50 }, { silent: true });
-      if (res && res.success && res.data?.items) {
-        const mapped = res.data.items.map((b) => ({
-          booking: b,
-          event: b.event,
-          ticket_type: b.ticket_type,
-        }));
-        setBookings(mapped);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // Fallback ke pencarian booking lokal jika tidak terautentikasi
-    }
-
-    try {
-      const results = await fetchAllSavedBookings(api);
-      setBookings(results);
-    } catch {
+      const results = await fetchAllSavedBookings();
+      setBookings(results.bookings);
+      setLoadError(results.errors.length ? `${results.errors.length} dari ${results.total} kode gagal dimuat. Daftar dan jumlah hanya mencakup hasil yang berhasil dimuat. ${results.errors.map((error) => `${error.booking_code}: ${error.message}${error.status ? ` (HTTP ${error.status})` : ""}`).join("; ")} Gunakan Segarkan Status untuk mencoba lagi.` : null);
+    } catch (err) {
       setBookings([]);
+      setLoadError(err.message || "Gagal memuat pesanan dari server.");
     } finally {
       setLoading(false);
     }
@@ -91,6 +78,7 @@ export default function PesananPage() {
     setLookupMessage(null);
     try {
       const res = await api.get(`/checkout/${encodeURIComponent(code)}`);
+      if (!res.success || !res.data?.booking) throw new Error(res.message || "Respons pesanan tidak valid.");
       if (res.data?.booking) {
         saveBookingEntry({
           booking_code: res.data.booking.booking_code,
@@ -131,10 +119,11 @@ export default function PesananPage() {
     setCancellingCode(bookingCode);
     setLookupMessage(null);
     try {
-      await api.post(`/checkout/${encodeURIComponent(bookingCode)}/cancel`);
+      const res = await api.post(`/checkout/${encodeURIComponent(bookingCode)}/cancel`);
+      if (res?.success !== true || res.data?.booking?.status !== "cancelled") throw new Error("Pembatalan belum dikonfirmasi server.");
       setLookupMessage({
         type: "success",
-        text: `Pesanan ${bookingCode} berhasil dibatalkan melalui POST /api/checkout/${bookingCode}/cancel.`,
+        text: `Pesanan ${bookingCode} berhasil dibatalkan.`,
       });
       await loadBookings();
     } catch (err) {
@@ -169,7 +158,7 @@ export default function PesananPage() {
               Manajemen Transaksi
             </span>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-              Pesanan Saya
+              Pesanan Tersimpan di Perangkat
             </h1>
             <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
               Lacak status pembayaran, batas waktu reservasi, dan e-ticket dari kode booking Anda secara real-time.
@@ -237,11 +226,12 @@ export default function PesananPage() {
           <div className="mt-3.5 flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
             <span>
-              Backend TicketWave menggunakan sistem <strong>Guest &amp; Tokenless Booking Lookup</strong> berdasarkan <code className="font-mono text-[11px]">booking_code</code>. Setiap pesanan tersimpan disinkronkan dengan server.
+              Daftar ini hanya memuat bookmark kode booking di perangkat ini, bukan seluruh riwayat akun. Rincian dan status dibaca dari server. Pesanan akun memerlukan login pemiliknya; kode booking tamu harus dijaga kerahasiaannya.
             </span>
           </div>
         </div>
 
+        {loadError && <p role="alert" className="mt-4 rounded-xl border border-red-200 p-4 text-sm text-red-700 dark:text-red-300">{loadError}</p>}
         {/* Filter Tabs */}
         <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
           {[
@@ -413,7 +403,7 @@ export default function PesananPage() {
         )}
 
         {/* Empty State */}
-        {!loading && filteredBookings.length === 0 && (
+        {!loading && !loadError && filteredBookings.length === 0 && (
           <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
               <CreditCard size={24} />

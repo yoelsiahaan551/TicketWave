@@ -24,7 +24,7 @@ function buildArtists(events) {
 }
 
 export default function ArtistSection() {
-  const { events, loading, error } = useLandingEvents();
+  const { events, loading, error, retry } = useLandingEvents();
   const artists = buildArtists(events);
 
   return (
@@ -35,7 +35,7 @@ export default function ArtistSection() {
         <div className="text-center mb-12">
 
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Top Artists
+            Artists On Sale
           </p>
 
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mt-1">
@@ -61,6 +61,7 @@ export default function ArtistSection() {
             <AlertTriangle className="mx-auto text-slate-400" size={32} />
             <p className="mt-3 font-semibold text-slate-900">Daftar artis gagal dimuat</p>
             <p className="mt-1 text-sm text-slate-500">{error}</p>
+            <button type="button" onClick={retry} className="mt-3 underline">Coba Lagi</button>
           </div>
         )}
 
@@ -92,7 +93,7 @@ export default function ArtistSection() {
                 <div className="absolute top-4 left-4">
 
                   <span className="bg-white/95 text-slate-900 px-3 py-1 rounded-full text-xs font-medium shadow-xs backdrop-blur-xs">
-                    TOP ARTIST
+                    ON SALE
                   </span>
 
                 </div>
@@ -115,7 +116,7 @@ export default function ArtistSection() {
                   </p>
 
                   <p className="text-slate-300 text-xs mt-1">
-                    {artist.events.length} Upcoming Event{artist.events.length > 1 ? "s" : ""}
+                    {artist.events.length} event dalam pilihan ini
                   </p>
 
                   <Link

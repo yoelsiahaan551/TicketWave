@@ -19,19 +19,19 @@ export default function PromoSection() {
               </div>
 
               <h2 className="mt-5 max-w-2xl text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight tracking-tight text-white">
-                Hemat Lebih Banyak di Fase
+                Periksa Harga Tiket dan
                 <span className="block text-[#0080f2]">
-                  Early Bird &amp; Presale Resmi
+                  Fase Penjualan Event
                 </span>
               </h2>
 
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/85">
-                Setiap kategori tiket di TicketWave mendukung fase harga{" "}
+                Penyelenggara dapat mengatur fase harga{" "}
                 <strong className="font-semibold text-white">Early Bird</strong>,{" "}
                 <strong className="font-semibold text-white">Presale</strong>, dan{" "}
                 <strong className="font-semibold text-white">Normal</strong>. Potongan
-                harga diterapkan otomatis berdasarkan tanggal aktif fase tanpa perlu
-                memasukkan kode voucher manual.
+                harga bergantung pada fase yang tersedia. Periksa harga aktif di
+                detail event; tidak semua tiket memiliki diskon.
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">

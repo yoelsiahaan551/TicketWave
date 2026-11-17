@@ -10,23 +10,23 @@ import {
 const features = [
   {
     icon: ShieldCheck,
-    title: "100% Secure",
-    desc: "Semua transaksi dienkripsi dan dilindungi dengan sistem keamanan modern.",
+    title: "Katalog Event",
+    desc: "Jelajahi event yang sedang membuka penjualan tiket.",
   },
   {
     icon: Ticket,
     title: "Official Ticket",
-    desc: "Tiket resmi langsung dari promotor tanpa risiko tiket palsu.",
+    desc: "Lihat kategori tiket dan penyelenggara di halaman detail event.",
   },
   {
     icon: CreditCard,
-    title: "Easy Payment",
-    desc: "Mendukung QRIS, Virtual Account, E-Wallet, dan Kartu Kredit.",
+    title: "Harga Tiket",
+    desc: "Periksa harga aktif setiap kategori sebelum melanjutkan pemesanan.",
   },
   {
     icon: Headphones,
-    title: "24/7 Support",
-    desc: "Customer service siap membantu kapan pun dibutuhkan.",
+    title: "Cari Berdasarkan Kota",
+    desc: "Saring konser dan festival menurut kota dan tanggal pelaksanaannya.",
   },
 ];
 

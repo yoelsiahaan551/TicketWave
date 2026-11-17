@@ -18,12 +18,18 @@ import {
   Info,
 } from "lucide-react";
 import api from "@/app/lib/api";
+import { validEventId, effectiveTicketPrice, stockOf, formatRupiah } from "@/app/components/landingPage/eventDisplay";
 
 const FALLBACK_BANNER =
   "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80";
 
 export default function EventDetailPage() {
   const { id } = useParams();
+  const [retryKey, setRetryKey] = useState(0);
+  return <EventDetailContent key={`${id}:${retryKey}`} id={id} onRetry={() => setRetryKey((key) => key + 1)} />;
+}
+
+function EventDetailContent({ id, onRetry }) {
   const router = useRouter();
 
   const [event, setEvent] = useState(null);
@@ -38,13 +44,16 @@ export default function EventDetailPage() {
   const [quantity, setQuantity] = useState(0);
 
   useEffect(() => {
-    if (!id) return;
     let ignore = false;
-
+    if (!validEventId(id)) return;
     api
       .get(`/public/events/${id}`)
       .then((response) => {
         if (ignore) return;
+        if (!validEventId(response.data?.event?.id) || String(response.data.event.id) !== String(id) ||
+            !Array.isArray(response.data?.ticket_types) || !Array.isArray(response.data?.lineup)) {
+          throw new Error("Respons detail event tidak valid. Silakan coba lagi.");
+        }
         if (response.data) {
           setEvent(response.data.event);
           setAgency(response.data.agency || null);
@@ -52,7 +61,7 @@ export default function EventDetailPage() {
           const types = response.data.ticket_types || [];
           setTicketTypes(types);
           const firstAvailable = types.find(
-            (t) => (t.stock_available ?? t.remaining ?? t.quota - t.sold_count) > 0
+            (t) => validEventId(t?.id) && stockOf(t) > 0 && effectiveTicketPrice(t) !== null
           );
           if (firstAvailable) {
             setSelectedTicketId(firstAvailable.id);
@@ -63,7 +72,13 @@ export default function EventDetailPage() {
       })
       .catch((error) => {
         if (!ignore) {
-          setErrorMsg(error.message || "Gagal memuat detail event.");
+          if (error.status === 404 || error.message?.includes("Event not found")) {
+            setErrorMsg(
+              `Event dengan ID '${id}' tidak ditemukan dalam katalog publik TicketWave. Event mungkin telah berakhir atau belum dipublikasikan.`
+            );
+          } else {
+            setErrorMsg(error.message || "Gagal memuat detail event.");
+          }
           setLoading(false);
         }
       });
@@ -84,14 +99,7 @@ export default function EventDetailPage() {
     return () => clearTimeout(t);
   }, [loading, errorMsg]);
 
-  const formatPrice = (price) => {
-    if (price === null || price === undefined) return "TBA";
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
+  const formatPrice = (price) => formatRupiah(price) || "Harga belum tersedia";
 
   const formatDate = (dateStr) => {
     if (!dateStr) {
@@ -113,37 +121,18 @@ export default function EventDetailPage() {
     }
   };
 
-  const getEffectivePrice = (t) => {
-    if (typeof t.final_price === "number" && !Number.isNaN(t.final_price)) {
-      return t.final_price;
-    }
-    if (
-      t.final_price &&
-      typeof t.final_price === "object" &&
-      t.final_price.final_price !== undefined
-    ) {
-      return Number(t.final_price.final_price);
-    }
-    if (t.active_phase && t.active_phase.discount_percent !== undefined) {
-      const base = Number(t.base_price || 0);
-      const disc = Number(t.active_phase.discount_percent || 0);
-      return Math.round(base * (1 - disc / 100));
-    }
-    return Number(t.base_price || 0);
-  };
-
-  const available = (t) =>
-    t.stock_available ?? t.remaining ?? Math.max(0, (t.quota || 0) - (t.sold_count || 0));
+  const getEffectivePrice = effectiveTicketPrice;
+  const available = stockOf;
 
   const handleSelectTicket = (ticket) => {
     const avail = available(ticket);
-    if (avail <= 0) return;
-    if (selectedTicketId === ticket.id) return;
+    if (avail <= 0 || !validEventId(ticket.id) || getEffectivePrice(ticket) === null) return;
     setSelectedTicketId(ticket.id);
     setQuantity(1);
   };
 
   const handleQuantityChange = (ticket, delta) => {
+    if (!validEventId(ticket.id) || getEffectivePrice(ticket) === null) return;
     const avail = available(ticket);
     const maxAllowed = Math.min(avail, 10);
     if (selectedTicketId !== ticket.id) {
@@ -157,7 +146,7 @@ export default function EventDetailPage() {
     setQuantity(next);
   };
 
-  if (loading) {
+  if (loading && validEventId(id)) {
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
         <div className="h-72 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
@@ -180,11 +169,12 @@ export default function EventDetailPage() {
             <AlertTriangle size={24} />
           </div>
           <h1 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">
-            Event tidak ditemukan atau tidak sedang dijual
+            Detail event belum dapat ditampilkan
           </h1>
           <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-            {errorMsg || "Hanya event dengan status on_sale yang dapat diakses secara publik."}
+            {!validEventId(id) ? "ID event tidak valid." : errorMsg || "Hanya event yang sedang dijual dapat diakses."}
           </p>
+          {validEventId(id) && <button type="button" onClick={onRetry} className="mt-4 mr-3 text-sm text-[#0080f2] underline">Coba Lagi</button>}
           <Link
             href="/user/event"
             className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
@@ -200,9 +190,11 @@ export default function EventDetailPage() {
   const selectedTicket = ticketTypes.find((t) => t.id === selectedTicketId);
   const effectiveUnitPrice = selectedTicket ? getEffectivePrice(selectedTicket) : 0;
   const total = selectedTicket && quantity > 0 ? effectiveUnitPrice * quantity : 0;
+  const canCheckout = event.status === "on_sale" && selectedTicket && validEventId(selectedTicket.id) &&
+    effectiveUnitPrice !== null && Number.isInteger(quantity) && quantity > 0 && quantity <= Math.min(10, available(selectedTicket));
 
   const lanjutCheckout = () => {
-    if (!selectedTicket || quantity <= 0) return;
+    if (!canCheckout) return;
 
     sessionStorage.setItem(
       "ticketwave_checkout",
@@ -425,7 +417,7 @@ export default function EventDetailPage() {
             ) : (
               ticketTypes.map((t) => {
                 const avail = available(t);
-                const habis = avail <= 0;
+                const habis = avail <= 0 || !validEventId(t.id) || getEffectivePrice(t) === null;
                 const isSelected = selectedTicketId === t.id && quantity > 0;
                 const effectivePrice = getEffectivePrice(t);
                 const basePrice = Number(t.base_price || 0);
@@ -490,7 +482,7 @@ export default function EventDetailPage() {
                             : "text-slate-600 dark:text-slate-400"
                         }`}
                       >
-                        {habis ? "Kuota habis" : `Tersedia ${avail} tiket`}
+                        {avail <= 0 ? "Kuota habis" : habis ? "Tiket belum dapat dipilih" : `Tersedia ${avail} tiket`}
                       </p>
 
                       {!habis && (
@@ -498,6 +490,8 @@ export default function EventDetailPage() {
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(t, -1)}
+                            aria-label={`Kurangi ${t.name}`}
+                            disabled={selectedTicketId !== t.id || quantity <= 0}
                             className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
                             <Minus size={13} />
@@ -508,6 +502,7 @@ export default function EventDetailPage() {
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(t, 1)}
+                            aria-label={`Tambah ${t.name}`}
                             disabled={
                               selectedTicketId === t.id &&
                               quantity >= Math.min(avail, 10)
@@ -539,7 +534,7 @@ export default function EventDetailPage() {
             <button
               type="button"
               onClick={lanjutCheckout}
-              disabled={!selectedTicket || quantity <= 0}
+              disabled={!canCheckout}
               className="mt-4 w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] py-3 text-xs sm:text-sm font-medium text-white shadow-xs transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               {selectedTicket && quantity > 0

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Calendar, MapPin, ArrowRight, Ticket, AlertTriangle, RefreshCw, CalendarX, Info, X, Clock, Flame } from "lucide-react";
+import { Calendar, MapPin, ArrowRight, Ticket, AlertTriangle, RefreshCw, CalendarX, Clock, Flame } from "lucide-react";
 import api from "@/app/lib/api";
 import { useLandingCities } from "@/app/components/landingPage/useLandingEvents";
 import {
+  readEventList,
   posterOf,
   handleImageError,
   formatRupiah,
@@ -18,38 +19,19 @@ import {
 } from "@/app/components/landingPage/eventDisplay";
 
 export default function TrendingEvents() {
-  const { cities } = useLandingCities();
+  const { cities, error: cityError, retry: retryCities } = useLandingCities();
   const [city, setCity] = useState("");
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [bookingNotice, setBookingNotice] = useState(false);
-  const noticeTimerRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-    };
-  }, []);
-
-  const handleUnavailableBooking = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setBookingNotice(true);
-    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-    noticeTimerRef.current = setTimeout(() => {
-      setBookingNotice(false);
-    }, 4500);
-  };
-
   useEffect(() => {
     let ignore = false;
     api
       .get("/public/events", { per_page: 6, city })
       .then((response) => {
         if (ignore) return;
-        setEvents(response?.data?.items || []);
+        setEvents(readEventList(response).items);
         setError(null);
         setLoading(false);
       })
@@ -83,10 +65,10 @@ export default function TrendingEvents() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[#0080f2]">
-              Trending
+              On Sale
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mt-1 text-slate-900">
-              Popular Events
+              Events On Sale
             </h2>
             <p className="text-sm text-slate-500 mt-2">
               Event yang sedang dijual di TicketWave — langsung dari sistem kami.
@@ -102,6 +84,7 @@ export default function TrendingEvents() {
           </Link>
         </div>
 
+        {cityError && <p role="alert" className="mb-4 text-sm text-slate-600">Daftar kota gagal dimuat. <button type="button" onClick={retryCities} className="underline">Coba Lagi</button></p>}
         {/* City filter (GET /api/public/events/cities) */}
         {cities.length > 0 && (
           <div className="mb-8 flex gap-2.5 overflow-x-auto pb-2">
@@ -202,7 +185,7 @@ export default function TrendingEvents() {
                       ) : (
                         <>
                           <Flame size={13} className="text-[#0080f2]" />
-                          <span>Trending</span>
+                          <span>On Sale</span>
                         </>
                       )}
                     </div>
@@ -251,13 +234,12 @@ export default function TrendingEvents() {
                         Lihat Detail
                       </Link>
                       {purchasable ? (
-                        <button
-                          type="button"
-                          onClick={handleUnavailableBooking}
+                        <Link
+                          href={`/user/event/${event.id}#pilih-tiket`}
                           className="cursor-pointer rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-3 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-xs transition"
                         >
                           Beli Tiket
-                        </button>
+                        </Link>
                       ) : (
                         <span className="cursor-not-allowed rounded-xl bg-slate-100 px-3 py-2 text-center text-xs sm:text-sm font-medium text-slate-400">
                           Tidak Tersedia
@@ -280,24 +262,7 @@ export default function TrendingEvents() {
         </Link>
       </div>
 
-      {bookingNotice && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm font-medium text-white shadow-2xl"
-        >
-          <Info size={18} className="shrink-0 text-slate-400" />
-          <span>Fitur pemesanan tiket belum tersedia saat ini.</span>
-          <button
-            type="button"
-            onClick={() => setBookingNotice(false)}
-            aria-label="Tutup notifikasi"
-            className="ml-2 rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
+
     </section>
   );
 }

@@ -222,7 +222,8 @@ canvas {
   width: 100% !important;
   height: 100% !important;
   border: none !important;
-  position: relative !important;
+  position: absolute !important;
+  inset: 0 !important;
   overflow: hidden !important;
   background: transparent !important;
 }
@@ -264,6 +265,7 @@ canvas {
 #ticketwave-qr-reader__dashboard_section,
 #ticketwave-qr-reader__dashboard_section_csr,
 #ticketwave-qr-reader__status_span,
-#ticketwave-qr-reader__header_message {
+#ticketwave-qr-reader__header_message,
+#qr-shaded-region {
   display: none !important;
 }

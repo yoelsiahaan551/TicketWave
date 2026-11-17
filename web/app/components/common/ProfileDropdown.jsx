@@ -2,18 +2,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { useIsMounted } from "@/app/context/ThemeContext";
 import {
   User as UserIcon,
   Settings as SettingsIcon,
-  Heart,
   LogOut,
   ChevronDown,
   Shield,
-  ExternalLink,
 } from "lucide-react";
 
 /**
@@ -35,7 +32,7 @@ export default function ProfileDropdown({
   className = "",
 }) {
   const pathname = usePathname();
-  const { user, isAuthenticated, isAdmin, isOfficer, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const mounted = useIsMounted();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -261,18 +258,6 @@ export default function ProfileDropdown({
               <UserIcon size={15} className="text-slate-500 dark:text-slate-400 shrink-0" />
               <span className="flex-1">Profil</span>
             </Link>
-
-            {/* Menu Favorit untuk Member User */}
-            {currentRole === "user" && (
-              <Link
-                href="/user/favorites"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-              >
-                <Heart size={15} className="text-[#0080f2] shrink-0" />
-                <span className="flex-1">Favorit Saya</span>
-              </Link>
-            )}
 
             {/* Menu Pengaturan */}
             <Link

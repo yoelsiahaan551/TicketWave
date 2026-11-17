@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,31 +20,45 @@ import { useIsMounted } from "@/app/context/ThemeContext";
 import { useAuth } from "@/app/context/AuthContext";
 import api from "@/app/lib/api";
 import { saveBookingEntry } from "@/app/lib/bookingStorage";
+import { reconcileCheckout } from "@/app/lib/checkout";
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
 
-  const [data] = useState(() => {
-    if (typeof window !== "undefined") {
+  const [data, setData] = useState(null);
+  const [selectionError, setSelectionError] = useState(null);
+  const [selectionLoading, setSelectionLoading] = useState(true);
+  const [selectionReload, setSelectionReload] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
       try {
         const raw = sessionStorage.getItem("ticketwave_checkout");
-        if (raw) return JSON.parse(raw);
-      } catch {
-        // ignore
+        if (!raw) return;
+        const selected = JSON.parse(raw);
+        if (!Number.isInteger(Number(selected?.eventId)) || Number(selected.eventId) < 1) throw new Error("Pilihan event tidak valid.");
+        const response = await api.get(`/public/events/${selected.eventId}`);
+        const verified = reconcileCheckout(selected, response);
+        if (active) { setData(verified); setSelectionError(null); }
+      } catch (error) {
+        if (active) setSelectionError(error.message || "Gagal memverifikasi tiket.");
+      } finally {
+        if (active) setSelectionLoading(false);
       }
-    }
-    return null;
-  });
+    };
+    const timer = setTimeout(load, 0);
+    return () => { active = false; clearTimeout(timer); };
+  }, [selectionReload]);
+
   const ready = useIsMounted();
-  const [metode, setMetode] = useState("transfer_bank");
   const [submitting, setSubmitting] = useState(false);
   const [pesan, setPesan] = useState(null);
 
   const [manualBuyerName, setManualBuyerName] = useState(null);
   const [manualBuyerEmail, setManualBuyerEmail] = useState(null);
   const [manualBuyerPhone, setManualBuyerPhone] = useState(null);
-  const [recipientEmail, setRecipientEmail] = useState("");
+
 
   const buyerName = manualBuyerName !== null ? manualBuyerName : user?.name || "";
   const buyerEmail = manualBuyerEmail !== null ? manualBuyerEmail : user?.email || "";
@@ -71,12 +85,13 @@ export default function CheckoutPage() {
     }
   };
 
-  const items = data?.items || [];
+  const items = Array.isArray(data?.items) ? data.items : [];
   const total = items.reduce((acc, i) => acc + i.harga * i.jumlah, 0);
   const totalTiket = items.reduce((acc, i) => acc + i.jumlah, 0);
 
   const konfirmasiPesanan = async () => {
-    if (!items.length || !data?.eventId) {
+    if (submitting) return;
+    if (!items.length || !Number.isInteger(Number(data?.eventId)) || Number(data?.eventId) < 1 || items.some((item) => !Number.isInteger(Number(item.jumlah)) || Number(item.jumlah) < 1 || !Number.isInteger(Number(item.ticket_type_id || item.id)) || Number(item.ticket_type_id || item.id) < 1)) {
       setPesan({
         tipe: "error",
         teks: "Data event atau pilihan tiket tidak valid. Silakan pilih kembali dari detail event.",
@@ -100,10 +115,10 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!buyerName.trim() || buyerName.trim().length < 2) {
+    if (buyerName.trim().length < 2 || buyerName.trim().length > 120) {
       setPesan({
         tipe: "error",
-        teks: "Nama lengkap pembeli wajib diisi (minimal 2 karakter).",
+        teks: "Nama lengkap pembeli harus terdiri dari 2–120 karakter.",
       });
       return;
     }
@@ -117,25 +132,14 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!buyerPhone.trim() || buyerPhone.trim().length < 10) {
+    if (buyerPhone.trim().length < 10 || buyerPhone.trim().length > 20) {
       setPesan({
         tipe: "error",
-        teks: "Nomor telepon pembeli wajib diisi minimal 10 digit.",
+        teks: "Nomor telepon pembeli harus terdiri dari 10–20 karakter.",
       });
       return;
     }
 
-    if (
-      recipientEmail &&
-      recipientEmail.trim() &&
-      !emailRegex.test(recipientEmail.trim())
-    ) {
-      setPesan({
-        tipe: "error",
-        teks: "Format email penerima tidak valid.",
-      });
-      return;
-    }
 
     setSubmitting(true);
     setPesan(null);
@@ -153,9 +157,6 @@ export default function CheckoutPage() {
       buyer_phone: buyerPhone.trim(),
     };
 
-    if (recipientEmail && recipientEmail.trim()) {
-      payload.recipient_email = recipientEmail.trim();
-    }
 
     try {
       const res = await api.post("/checkout", payload);
@@ -195,7 +196,15 @@ export default function CheckoutPage() {
     }
   };
 
-  if (ready && !data) {
+  if (!ready || selectionLoading) return <p className="px-6 py-16 text-center">Memverifikasi harga dan stok tiket...</p>;
+  if (selectionError) return (
+    <div role="alert" className="mx-auto max-w-3xl px-6 py-16">
+      <p>{selectionError}</p>
+      <button type="button" onClick={() => { setSelectionLoading(true); setSelectionReload((value) => value + 1); }}>Coba Lagi</button>
+      <Link href="/user/event"> Pilih Event</Link>
+    </div>
+  );
+  if (!data) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-16">
         <EmptyState
@@ -292,7 +301,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Metode pembayaran */}
-          <PaymentMethod value={metode} onChange={setMetode} />
+          <PaymentMethod />
 
           {/* Form Data Pembeli */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -360,13 +369,13 @@ export default function CheckoutPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  Email Penerima Tiket (Opsional)
+                  Email Penerima Terpisah (Belum Tersedia)
                 </label>
                 <input
                   type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="Kosongkan jika dikirim ke email pembeli"
+                  disabled
+                  value=""
+                  placeholder="Pengiriman ke penerima terpisah belum tersedia"
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-[#0080f2]"
                 />
               </div>
@@ -394,7 +403,7 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={konfirmasiPesanan}
-            disabled={submitting || totalTiket === 0}
+            disabled={submitting || selectionLoading || !!selectionError || totalTiket === 0}
             className="w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] py-3 text-sm font-medium text-white shadow-xs transition disabled:opacity-60"
           >
             {submitting

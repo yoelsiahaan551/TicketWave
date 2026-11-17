@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(null);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) {
@@ -56,8 +57,12 @@ export default function ProfilePage() {
 
   const handleRefreshProfile = async () => {
     setRefreshing(true);
+    setRefreshError(null);
     try {
-      await fetchCurrentUser();
+      const currentUser = await fetchCurrentUser();
+      if (!currentUser) throw new Error("Data profil terbaru belum dapat dimuat. Silakan coba lagi.");
+    } catch (err) {
+      setRefreshError(err.message || "Gagal menyinkronkan profil.");
     } finally {
       setRefreshing(false);
     }
@@ -72,12 +77,15 @@ export default function ProfilePage() {
     setVerifyMsg(null);
     try {
       const res = await api.get(`/auth/verify-email/${encodeURIComponent(token)}`);
+      if (res?.success !== true) throw new Error("Verifikasi email belum dikonfirmasi server.");
       setVerifyMsg({
         type: "success",
         text: res.message || "Email Anda berhasil diverifikasi!",
       });
       if (typeof window !== "undefined") {
         localStorage.removeItem("ticketwave_verification_token");
+        sessionStorage.removeItem("ticketwave_verification_token");
+        setVerificationToken("");
       }
       await fetchCurrentUser();
     } catch (err) {
@@ -158,6 +166,7 @@ export default function ProfilePage() {
           </button>
         </div>
 
+        {refreshError && <p role="alert" className="mb-4 text-sm text-red-700 dark:text-red-300">{refreshError}</p>}
         {/* Profile Summary Card */}
         <div className="mb-5 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <div className="flex flex-col items-center gap-5 sm:flex-row">
@@ -344,7 +353,7 @@ export default function ProfilePage() {
           <div className="mt-5 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
             <span>
-              Untuk mengatur ulang kata sandi akun Anda, silakan kunjungi halaman{" "}
+              Perubahan profil belum tersedia; data ini hanya dapat dibaca. Untuk mengatur ulang kata sandi akun Anda, silakan kunjungi halaman{" "}
               <Link
                 href="/user/settings"
                 className="font-medium text-[#0080f2] hover:underline"

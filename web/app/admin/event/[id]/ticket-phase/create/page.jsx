@@ -21,29 +21,43 @@ function CreateTicketPhaseContent() {
   const [discount, setDiscount] = useState(10);
 
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!eventId) return;
+    let active = true;
     api
       .get(`/events/${eventId}`)
       .then((res) => {
+        if (!active) return;
         const tts = res.data?.ticket_types || [];
         setTicketTypes(tts);
-        if (!ticketTypeId && tts.length > 0) {
-          setTicketTypeId(String(tts[0].id));
-        }
+        setTicketTypeId(tts.some((tt) => String(tt.id) === queryTicketTypeId)
+          ? queryTicketTypeId : String(tts[0]?.id || ""));
+        setLoading(false);
       })
-      .catch(() => setTicketTypes([]));
-  }, [eventId, ticketTypeId]);
+      .catch((err) => {
+        if (!active) return;
+        setTicketTypes([]);
+        setError(err.message || "Gagal memuat kategori tiket.");
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [eventId, queryTicketTypeId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!ticketTypeId) {
+    if (loading || submitting) return;
+    if (!ticketTypes.some((tt) => String(tt.id) === String(ticketTypeId))) {
       setError("Pilih kategori tiket terlebih dahulu.");
       return;
     }
 
+    if (!startDate || !endDate || startDate >= endDate || !Number.isFinite(Number(discount)) || Number(discount) < 0 || Number(discount) > 100) {
+      setError("Tanggal akhir harus setelah tanggal mulai dan diskon harus 0–100%.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
@@ -203,7 +217,7 @@ function CreateTicketPhaseContent() {
               <div className="space-y-2 pt-2">
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || loading || !ticketTypes.length}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 disabled:opacity-50"
                 >
                   {submitting ? "Menyimpan..." : "Simpan Fase Harga"}

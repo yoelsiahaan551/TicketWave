@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Pencil,
@@ -228,7 +229,10 @@ export default function AdminEventDetailPage() {
 
       {/* Banner */}
       <div className="relative h-60 overflow-hidden rounded-xl">
-        <img
+        <Image
+          fill
+          sizes="100vw"
+          unoptimized
           src={event.banner_url || event.poster_url || FALLBACK_BANNER}
           alt={event.name}
           className="h-full w-full object-cover"

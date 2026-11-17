@@ -23,25 +23,26 @@ const METHODS = [
   },
 ];
 
-export default function PaymentMethod({ value, onChange }) {
+export default function PaymentMethod() {
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-        Preferensi Metode Pembayaran
+        Metode Pembayaran
       </h3>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Pilih preferensi kanal pembayaran Anda. Setelah checkout dikonfirmasi, sistem menghasilkan URL pembayaran Midtrans Snap untuk kode booking Anda.
+        Kanal dipilih di halaman Midtrans setelah server menyediakan tautan resmi. Pilihan di bawah hanya informasi kanal; ketersediaannya mengikuti sesi Midtrans.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {METHODS.map((m) => {
           const Icon = m.icon;
-          const active = value === m.id;
+          const active = false;
           return (
             <button
               key={m.id}
               type="button"
-              onClick={() => onChange(m.id)}
+              disabled
+              aria-label={m.nama}
               className={`flex items-start gap-2.5 rounded-xl border p-3.5 text-left transition ${
                 active
                   ? "border-[#0080f2] bg-blue-50/50 ring-1 ring-[#0080f2] dark:border-[#0080f2] dark:bg-blue-950/40 dark:ring-[#0080f2]"

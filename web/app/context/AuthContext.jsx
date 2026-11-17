@@ -3,13 +3,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/app/lib/api';
-import {
-  isDummyModeEnabled,
-  matchDummyLogin,
-  getStoredDemoSession,
-  setStoredDemoSession,
-  clearDemoSession,
-} from '@/app/lib/dummyAuth';
 
 const AuthContext = createContext(null);
 
@@ -19,17 +12,7 @@ export function AuthProvider({ children }) {
   const router = useRouter();
 
   const fetchCurrentUser = useCallback(async () => {
-    // 1. Cek apakah ada sesi demo lokal aktif (hanya jika mode dummy secara eksplisit aktif)
-    if (isDummyModeEnabled()) {
-      const demoUser = getStoredDemoSession();
-      if (demoUser) {
-        setUser(demoUser);
-        setLoading(false);
-        return demoUser;
-      }
-    }
-
-    // 2. Jika bukan demo session, periksa token backend asli
+    // Periksa token backend asli
     const token = api.getAccessToken();
     const refreshToken = api.getRefreshToken();
     if (!token && !refreshToken) {
@@ -39,7 +22,9 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      const sessionVersion = api.sessionVersion;
       const response = await api.get('/auth/me', {}, { silent: true });
+      if (sessionVersion !== api.sessionVersion || (!api.getAccessToken() && !api.getRefreshToken())) return null;
       if (response && response.success) {
         const userData =
           response.data?.user ||
@@ -78,39 +63,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const onSessionCleared = () => {
+      setUser(null);
+      setLoading(false);
+    };
+    const unsubscribe = api.subscribeSessionCleared(onSessionCleared);
     const t = setTimeout(() => {
       fetchCurrentUser();
     }, 0);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      unsubscribe();
+    };
   }, [fetchCurrentUser]);
 
   const login = async (email, password, rememberMe = false) => {
     const trimmedEmail = (email || '').trim();
 
-    // 1. DUMMY LOGIN HANDLER (Aktif secara default di frontend untuk pengujian lokal)
-    if (isDummyModeEnabled()) {
-      const dummyResult = matchDummyLogin(trimmedEmail, password);
-      if (dummyResult.success) {
-        api.clearTokens(); // Pastikan storage token backend bersih
-        setStoredDemoSession(dummyResult.user, rememberMe);
-        setUser(dummyResult.user);
-        setLoading(false);
-        return { success: true, user: dummyResult.user, isDemo: true };
-      } else {
-        clearDemoSession();
-        setUser(null);
-        setLoading(false);
-        return {
-          success: false,
-          status: dummyResult.status || 400,
-          message: dummyResult.message || "Email atau password yang Anda masukkan salah. Silakan periksa kembali.",
-          isDemo: true,
-        };
-      }
-    }
-
-    // 2. REAL BACKEND AUTHENTICATION (Dapat diaktifkan kembali jika Dummy Mode dinonaktifkan)
-    clearDemoSession(); // Pastikan sesi demo dibersihkan saat login backend asli
     try {
       const response = await api.post('/auth/login', { email: trimmedEmail, password });
       
@@ -240,7 +209,6 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(() => {
-    clearDemoSession();
     api.clearTokens();
     setUser(null);
     router.push('/login');
@@ -257,7 +225,7 @@ export function AuthProvider({ children }) {
     isAdmin: user?.role === 'admin',
     isOfficer: user?.role === 'officer',
     isUser: user?.role === 'user',
-    isDemoSession: !!user?.isDemo,
+    isDemoSession: false,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -18,13 +18,17 @@ export function getSavedBookingEntries() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item?.booking_code !== "string" || !item.booking_code.trim())) {
+      throw new Error("Format bookmark tidak valid.");
+    }
+    // Only codes are bookmarks; legacy cached metadata is never authoritative.
+    return [...new Set(parsed.map((item) => item.booking_code))].map((booking_code) => ({ booking_code }));
   } catch {
-    return [];
+    throw new Error("Daftar kode booking di perangkat tidak dapat dibaca. Periksa izin penyimpanan browser dan coba lagi.");
   }
 }
 
-export function saveBookingEntry({ booking_code, payment_url = null, recipient_email = null }) {
+export function saveBookingEntry({ booking_code }) {
   if (typeof window === "undefined" || !booking_code) return;
   const code = String(booking_code).trim().toUpperCase();
   if (!code) return;
@@ -32,14 +36,7 @@ export function saveBookingEntry({ booking_code, payment_url = null, recipient_e
   try {
     const existing = getSavedBookingEntries();
     const filtered = existing.filter((item) => item.booking_code !== code);
-    const prev = existing.find((item) => item.booking_code === code);
-
-    const nextEntry = {
-      booking_code: code,
-      payment_url: payment_url || prev?.payment_url || null,
-      recipient_email: recipient_email || prev?.recipient_email || null,
-      saved_at: prev?.saved_at || new Date().toISOString(),
-    };
+    const nextEntry = { booking_code: code };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify([nextEntry, ...filtered]));
   } catch (err) {
@@ -61,11 +58,9 @@ export function removeSavedBookingCode(booking_code) {
 
 export const removeBookingEntry = removeSavedBookingCode;
 
-export function getSavedPaymentUrl(booking_code) {
-  if (!booking_code) return null;
-  const code = String(booking_code).trim().toUpperCase();
-  const found = getSavedBookingEntries().find((item) => item.booking_code === code);
-  return found?.payment_url || null;
+export function getSavedPaymentUrl() {
+  // Payment URLs must come from a fresh server response.
+  return null;
 }
 
 /**
@@ -74,26 +69,36 @@ export function getSavedPaymentUrl(booking_code) {
  */
 export async function fetchAllSavedBookings() {
   const entries = getSavedBookingEntries();
-  if (entries.length === 0) return [];
+  if (entries.length === 0) return { bookings: [], errors: [], total: 0 };
 
   const results = await Promise.allSettled(
     entries.map(async (entry) => {
-      const res = await api.get(`/checkout/${encodeURIComponent(entry.booking_code)}`);
-      if (res.success && res.data?.booking) {
-        return {
-          ...res.data,
-          booking: {
-            ...res.data.booking,
-            payment_url: res.data.booking.payment_url || entry.payment_url || null,
-            recipient_email: entry.recipient_email || null,
-          },
-        };
+      try {
+        const res = await api.get(
+          `/checkout/${encodeURIComponent(entry.booking_code)}`,
+          {},
+          { silent: true }
+        );
+        if (res?.success === true && res.data?.booking?.booking_code === entry.booking_code && typeof res.data.booking.status === "string" && Array.isArray(res.data.tickets)) {
+          return res.data;
+        }
+        throw new Error("Respons detail booking tidak valid.");
+      } catch (err) {
+        // Retain bookmarks on errors, including unauthorized requests.
+        throw err;
       }
-      throw new Error("Booking not found");
     })
   );
 
-  return results
-    .filter((r) => r.status === "fulfilled" && r.value)
-    .map((r) => r.value);
+  const bookings = [];
+  const errors = [];
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") bookings.push(result.value);
+    else errors.push({
+      booking_code: entries[index].booking_code,
+      message: result.reason?.message || "Gagal memuat pesanan. Silakan coba lagi.",
+      status: result.reason?.status || 0,
+    });
+  });
+  return { bookings, errors, total: entries.length };
 }

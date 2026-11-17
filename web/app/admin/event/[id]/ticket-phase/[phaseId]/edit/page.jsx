@@ -19,6 +19,7 @@ export default function EditTicketPhasePage() {
   const [discount, setDiscount] = useState(0);
 
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -32,6 +33,7 @@ export default function EditTicketPhasePage() {
         if (ignore) return;
         const ph = res.data;
         if (ph) {
+          setLoaded(true);
           setTicketTypeId(ph.ticket_type_id);
           setPhaseName(ph.phase_name || "early_bird");
           setStartDate(ph.start_date || "");
@@ -54,6 +56,11 @@ export default function EditTicketPhasePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!loaded || submitting) return;
+    if (!startDate || !endDate || startDate >= endDate || !Number.isFinite(Number(discount)) || Number(discount) < 0 || Number(discount) > 100) {
+      setError("Tanggal akhir harus setelah tanggal mulai dan diskon harus 0–100%.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setSuccessMsg(null);
@@ -216,7 +223,7 @@ export default function EditTicketPhasePage() {
               <div className="space-y-2 pt-2">
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !loaded}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 disabled:opacity-50"
                 >
                   {submitting ? "Menyimpan..." : "Simpan Perubahan"}

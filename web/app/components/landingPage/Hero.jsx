@@ -9,8 +9,6 @@ import {
   Search,
   ArrowRight,
   Ticket,
-  Users,
-  Star,
 } from "lucide-react";
 import {
   useLandingEvents,
@@ -27,8 +25,8 @@ import {
 
 export default function Hero() {
   const router = useRouter();
-  const { events, totalItems, loading, error } = useLandingEvents();
-  const { cities } = useLandingCities();
+  const { events, totalItems, loading, error, retry } = useLandingEvents();
+  const { cities, loading: citiesLoading, error: cityError, retry: retryCities } = useLandingCities();
 
   const [keyword, setKeyword] = useState("");
   const [city, setCity] = useState("");
@@ -76,7 +74,7 @@ export default function Hero() {
               <Ticket size={15} className="text-[#0080f2]" />
 
               <span>
-                Trusted by 150K+ Ticket Buyers
+                Concert & Festival Tickets
               </span>
 
             </div>
@@ -92,8 +90,7 @@ export default function Hero() {
             </h1>
 
             <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-slate-300">
-              Book tickets for concerts, festivals, sports, comedy,
-              exhibitions and unforgettable experiences across Indonesia.
+              Explore concerts and festivals across Indonesia.
             </p>
 
             {/* Search Box (diteruskan ke GET /api/public/events lewat /user/event) */}
@@ -164,6 +161,8 @@ export default function Hero() {
               </div>
 
             </form>
+            {cityError && <p role="alert" className="mt-3 text-sm text-white">Daftar kota gagal dimuat. <button type="button" onClick={retryCities} className="underline">Coba Lagi</button></p>}
+            {error && <p role="alert" className="mt-3 text-sm text-white">Katalog event gagal dimuat. <button type="button" onClick={retry} className="underline">Coba Lagi</button></p>}
 
             {/* Stats (Events & Kota dari backend) */}
 
@@ -184,7 +183,7 @@ export default function Hero() {
               <div>
 
                 <h2 className="text-3xl font-bold text-white tracking-tight">
-                  {loading ? "…" : cities.length}
+                  {citiesLoading ? "…" : cityError ? "–" : cities.length}
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-400">
@@ -193,18 +192,7 @@ export default function Hero() {
 
               </div>
 
-              <div>
 
-                <h2 className="flex items-center gap-1.5 text-3xl font-bold text-white tracking-tight">
-                  4.9
-                  <Star className="h-5 w-5 fill-slate-300 text-slate-300" />
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Rating
-                </p>
-
-              </div>
 
             </div>
 
@@ -213,22 +201,6 @@ export default function Hero() {
           {/* RIGHT */}
 
           <div className="relative hidden lg:flex justify-center">
-
-            {/* Floating Left */}
-
-            <div className="absolute left-0 top-10 z-10 rounded-xl border border-slate-100 bg-white/95 p-4 shadow-lg backdrop-blur-md">
-
-              <Users className="mb-2 text-[#0080f2]" size={20} />
-
-              <h2 className="text-2xl font-bold text-slate-900">
-                150K+
-              </h2>
-
-              <p className="text-xs text-slate-500">
-                Happy Users
-              </p>
-
-            </div>
 
             {/* Main Card — event on sale terdekat dari backend */}
 
@@ -309,19 +281,7 @@ export default function Hero() {
 
             </div>
 
-            {/* Floating Right */}
 
-            <div className="absolute right-0 bottom-10 rounded-xl border border-slate-100 bg-white/95 p-4 shadow-lg backdrop-blur-md">
-
-              <h2 className="text-2xl font-bold text-slate-900">
-                24/7
-              </h2>
-
-              <p className="text-xs text-slate-500">
-                Customer Support
-              </p>
-
-            </div>
 
           </div>
 

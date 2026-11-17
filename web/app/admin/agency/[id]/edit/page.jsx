@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Building2, Upload, AlertCircle, CheckCircle2 } from "lucide-react";
 import api from "@/app/lib/api";
 
@@ -20,8 +21,10 @@ export default function EditAgencyPage() {
   const [logoFile, setLogoFile] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [warning, setWarning] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
   useEffect(() => {
@@ -33,6 +36,7 @@ export default function EditAgencyPage() {
         if (ignore) return;
         const ag = res.data;
         if (ag) {
+          setLoaded(true);
           setName(ag.name || "");
           setPicName(ag.pic_name || "");
           setEmail(ag.email || "");
@@ -56,31 +60,57 @@ export default function EditAgencyPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!loaded || submitting) return;
     setSubmitting(true);
     setError(null);
+    setWarning(null);
     setSuccessMsg(null);
+
+    if (name.trim().length < 2 || name.trim().length > 150 || picName.trim().length < 2 || picName.trim().length > 120) {
+      setError("Nama agency harus 2–150 karakter dan nama PIC 2–120 karakter.");
+      setSubmitting(false);
+      return;
+    }
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone.length < 8) {
+      setError("Nomor telepon minimal 8 karakter.");
+      setSubmitting(false);
+      return;
+    }
+    if (trimmedPhone.length > 20) {
+      setError("Nomor telepon maksimal 20 karakter.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       await api.put(`/agencies/${id}`, {
         name: name.trim(),
         pic_name: picName.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: trimmedPhone,
         address: address.trim(),
       });
 
+      let logoUploadFailed = false;
       if (logoFile) {
         try {
           const formData = new FormData();
           formData.append("logo", logoFile);
           await api.upload(`/agencies/${id}/logo`, formData);
+          setLogoFile(null);
         } catch (uploadErr) {
-          console.warn("Logo upload warning (Cloudinary backend):", uploadErr);
+          setWarning(`Data agency berhasil diperbarui, tetapi logo gagal diunggah: ${uploadErr.message || "Gagal terhubung ke layanan unggahan."} Silakan coba unggah logo kembali.`);
+          logoUploadFailed = true;
         }
       }
 
-      setSuccessMsg("Data agency berhasil diperbarui!");
-      setTimeout(() => router.push("/admin/agency"), 900);
+      if (logoUploadFailed) {
+        return;
+      } else {
+        setSuccessMsg("Data agency berhasil diperbarui!");
+        setTimeout(() => router.push("/admin/agency"), 900);
+      }
     } catch (err) {
       setError(err.message || "Gagal memperbarui agency.");
     } finally {
@@ -132,6 +162,23 @@ export default function EditAgencyPage() {
                 <div className="flex items-start gap-2.5 rounded-xl border border-slate-300 bg-slate-100 p-3 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   <AlertCircle size={16} className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
                   <span>{error}</span>
+                </div>
+              )}
+
+              {warning && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs font-medium text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="flex-1">
+                    <span>{warning}</span>
+                    <div className="mt-2">
+                      <Link
+                        href="/admin/agency"
+                        className="inline-flex items-center text-[11px] font-semibold text-amber-700 underline hover:text-amber-900 dark:text-amber-300"
+                      >
+                        Kembali ke Daftar Agency sekarang &rarr;
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -191,10 +238,13 @@ export default function EditAgencyPage() {
                   <input
                     type="tel"
                     required
+                    minLength={8}
+                    maxLength={20}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-slate-500 focus:ring-1 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-400 dark:focus:ring-slate-400"
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">Minimal 8 karakter, maksimal 20 karakter.</p>
                 </div>
               </div>
 
@@ -227,7 +277,7 @@ export default function EditAgencyPage() {
               <div className="space-y-2 pt-2">
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !loaded}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-50"
                 >
                   {submitting ? "Menyimpan..." : "Simpan Perubahan"}
@@ -249,7 +299,10 @@ export default function EditAgencyPage() {
               <div className="flex flex-col items-center justify-center gap-3">
                 <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
                   {logoPreview ? (
-                    <img
+                    <Image
+                      width={112}
+                      height={112}
+                      unoptimized
                       src={logoPreview}
                       alt="Logo"
                       className="h-full w-full object-cover"

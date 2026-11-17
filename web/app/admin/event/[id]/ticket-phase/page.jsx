@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -23,10 +23,11 @@ function TicketPhaseListContent() {
   const [event, setEvent] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(
-    queryTicketTypeId ? Number(queryTicketTypeId) : null
+    null
   );
   const [phases, setPhases] = useState([]);
-  const [phaseTotal, setPhaseTotal] = useState(0);
+  const [phaseTotal, setPhaseTotal] = useState(null);
+  const requestVersion = useRef(0);
   const [phaseTicketTypeMeta, setPhaseTicketTypeMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [phasesLoading, setPhasesLoading] = useState(false);
@@ -44,7 +45,7 @@ function TicketPhaseListContent() {
         const tts = ev?.ticket_types || [];
         setTicketTypes(tts);
         if (tts.length > 0) {
-          const initialId = queryTicketTypeId
+          const initialId = tts.some((tt) => String(tt.id) === queryTicketTypeId)
             ? Number(queryTicketTypeId)
             : tts[0].id;
           setSelectedTicketTypeId(initialId);
@@ -68,35 +69,44 @@ function TicketPhaseListContent() {
 
   const fetchPhases = useCallback(async (ttId) => {
     if (!ttId) return;
+    const version = ++requestVersion.current;
     await Promise.resolve();
     setPhasesLoading(true);
+    setMessage(null);
+    setPhaseTotal(null);
+    setPhases([]);
+    setPhaseTicketTypeMeta(null);
     try {
       const res = await api.get(`/ticket-types/${ttId}/phases`);
+      if (version !== requestVersion.current) return;
       const list = res.data?.phases || [];
       setPhases(list);
       setPhaseTotal(res.data?.total ?? list.length);
       setPhaseTicketTypeMeta(res.data?.ticket_type || null);
     } catch (err) {
+      if (version !== requestVersion.current) return;
       setMessage({
         type: "error",
         text: err.message || "Gagal memuat daftar fase tiket.",
       });
       setPhases([]);
-      setPhaseTotal(0);
+      setPhaseTotal(null);
       setPhaseTicketTypeMeta(null);
     } finally {
-      setPhasesLoading(false);
+      if (version === requestVersion.current) setPhasesLoading(false);
     }
   }, []);
+
+  const invalidatePhases = useCallback(() => { requestVersion.current++; }, []);
 
   useEffect(() => {
     if (selectedTicketTypeId) {
       const t = setTimeout(() => {
         fetchPhases(selectedTicketTypeId);
       }, 0);
-      return () => clearTimeout(t);
+      return () => { clearTimeout(t); invalidatePhases(); };
     }
-  }, [selectedTicketTypeId, fetchPhases]);
+  }, [selectedTicketTypeId, fetchPhases, invalidatePhases]);
 
   const handleDeletePhase = async (phase) => {
     const confirmed = window.confirm(
@@ -237,7 +247,7 @@ function TicketPhaseListContent() {
       )}
 
       {/* Phases Table */}
-      {selectedTicketType && (
+      {selectedTicketType && message?.type !== "error" && (
         <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -246,7 +256,7 @@ function TicketPhaseListContent() {
               {phaseTicketTypeMeta?.id || selectedTicketType.id})
             </h2>
             <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              Total Fase: {phaseTotal} • Dasar:{" "}
+              Total Fase: {phaseTotal ?? "—"} • Dasar:{" "}
               {formatPrice(
                 phaseTicketTypeMeta?.base_price ?? selectedTicketType.base_price
               )}

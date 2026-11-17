@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Calendar,
   Building2,
-  Users,
   Ticket,
   CheckCircle2,
   RefreshCw,
@@ -30,12 +29,10 @@ const statusBadge = {
 
 export default function AdminDashboard() {
   const [events, setEvents] = useState([]);
-  const [totalEventsCount, setTotalEventsCount] = useState(0);
-  const [totalAgenciesCount, setTotalAgenciesCount] = useState(0);
-  const [totalTicketsSold, setTotalTicketsSold] = useState(0);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalBookingsCount, setTotalBookingsCount] = useState(0);
-  const [recentBookings, setRecentBookings] = useState([]);
+  const [totalEventsCount, setTotalEventsCount] = useState(null);
+  const [totalAgenciesCount, setTotalAgenciesCount] = useState(null);
+  const [onSaleCount, setOnSaleCount] = useState(null);
+  const [draftCount, setDraftCount] = useState(null);
   const [isLiveBackend, setIsLiveBackend] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,73 +41,37 @@ export default function AdminDashboard() {
     setLoading(true);
     setError(null);
 
-    // 1. Prioritaskan agregasi metrik langsung dari API backend asli (GET /api/events & GET /api/agencies)
+    setEvents([]);
+    setTotalEventsCount(null);
+    setTotalAgenciesCount(null);
+    setOnSaleCount(null);
+    setDraftCount(null);
+    setIsLiveBackend(false);
     try {
-      const [eventsRes, agenciesRes] = await Promise.all([
-        api.get("/events", { page: 1, per_page: 50 }, { silent: true }),
-        api.get("/agencies", { page: 1, per_page: 50 }, { silent: true }),
+      const [eventsRes, agenciesRes, saleRes, draftRes] = await Promise.all([
+        api.get("/events", { page: 1, per_page: 8 }, { silent: true }),
+        api.get("/agencies", { page: 1, per_page: 1 }, { silent: true }),
+        api.get("/events", { status: "on_sale", per_page: 1 }, { silent: true }),
+        api.get("/events", { status: "draft", per_page: 1 }, { silent: true }),
       ]);
-
-      const eventItems = eventsRes.data?.items || [];
-      const totalEv = eventsRes.data?.total_items ?? eventItems.length;
-      const agencyItems = agenciesRes.data?.items || [];
-      const totalAg = agenciesRes.data?.total_items ?? agencyItems.length;
-
-      // Ambil rincian tiket untuk menghitung akumulasi sold_count dari database backend
-      const detailPromises = eventItems.slice(0, 10).map((ev) =>
-        api
-          .get(`/events/${ev.id}`, {}, { silent: true })
-          .then((r) => r.data)
-          .catch(() => ev)
-      );
-      const detailedList = await Promise.all(detailPromises);
-      const detailMap = new Map(detailedList.map((d) => [d.id, d]));
-
-      let soldSum = 0;
-      const enrichedEvents = eventItems.map((ev) => {
-        const det = detailMap.get(ev.id) || ev;
-        const tts = det.ticket_types || [];
-        const evSold = tts.reduce((acc, t) => acc + Number(t.sold_count || 0), 0);
-        const evQuota = tts.reduce((acc, t) => acc + Number(t.quota || 0), 0);
-        soldSum += evSold;
-        return {
-          ...ev,
-          sold_count: evSold,
-          total_quota: evQuota,
-          ticket_types_count: tts.length,
-        };
-      });
-
-      setEvents(enrichedEvents);
-      setTotalEventsCount(totalEv);
-      setTotalAgenciesCount(totalAg);
-      setTotalTicketsSold(soldSum);
-      setIsLiveBackend(true);
-      setLoading(false);
-      return;
-    } catch (backendErr) {
-      console.warn("Backend live aggregation unavailable, falling back to simulated dashboard:", backendErr);
-    }
-
-    // 2. Fallback jika backend offline / endpoint belum terhubung
-    try {
-      const dashRes = await api.get("/admin/dashboard", {}, { silent: true });
-      if (dashRes && dashRes.success && dashRes.data?.metrics) {
-        const m = dashRes.data.metrics;
-        setTotalEventsCount(m.total_events || 0);
-        setTotalAgenciesCount(m.total_agencies || 0);
-        setTotalTicketsSold(m.tickets_sold || 0);
-        setTotalRevenue(m.total_revenue || 0);
-        setTotalBookingsCount(m.total_bookings || 0);
-        setRecentBookings(dashRes.data.recent_bookings || []);
-        setEvents(dashRes.data.recent_events || []);
+      for (const response of [eventsRes, agenciesRes, saleRes, draftRes]) {
+        if (!response?.success || !Array.isArray(response.data?.items) ||
+            !Number.isInteger(response.data?.total_items) || response.data.total_items < 0) {
+          throw new Error("Respons ringkasan dashboard tidak valid. Silakan muat ulang data.");
+        }
       }
-      setIsLiveBackend(false);
-    } catch (err) {
+      setEvents(eventsRes.data?.items || []);
+      setTotalEventsCount(eventsRes.data?.total_items ?? null);
+      setTotalAgenciesCount(agenciesRes.data?.total_items ?? null);
+      setOnSaleCount(saleRes.data?.total_items ?? null);
+      setDraftCount(draftRes.data?.total_items ?? null);
+      setIsLiveBackend(true);
+    } catch (backendErr) {
       setError(
-        err.message ||
-          "Gagal memuat ringkasan dashboard. Pastikan Anda sudah login menggunakan akun Admin."
+        backendErr.message ||
+          "Gagal memuat ringkasan dashboard dari backend Flask. Pastikan Anda sudah login menggunakan akun Admin."
       );
+      setIsLiveBackend(false);
     } finally {
       setLoading(false);
     }
@@ -123,34 +84,33 @@ export default function AdminDashboard() {
     return () => clearTimeout(t);
   }, [fetchDashboardData]);
 
-  const onSaleCount = events.filter((e) => e.status === "on_sale").length;
 
   const stats = [
     {
       name: "Total Event Terdaftar",
       value: totalEventsCount,
-      subtext: isLiveBackend ? "Data riil dari GET /api/events" : "Mode Simulasi",
+      subtext: isLiveBackend ? "Seluruh event terdaftar" : "Data belum tersedia",
       icon: Calendar,
       iconClass: "text-[#0080f2] bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400",
     },
     {
       name: "Event Sedang Dijual",
       value: onSaleCount,
-      subtext: isLiveBackend ? "Tampil di katalog publik" : "Mode Simulasi",
+      subtext: isLiveBackend ? "Status penjualan aktif" : "Data belum tersedia",
       icon: CheckCircle2,
       iconClass: "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300",
     },
     {
       name: "Total Agency",
       value: totalAgenciesCount,
-      subtext: isLiveBackend ? "Data riil dari GET /api/agencies" : "Mode Simulasi",
+      subtext: isLiveBackend ? "Seluruh agency terdaftar" : "Data belum tersedia",
       icon: Building2,
       iconClass: "text-[#0080f2] bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400",
     },
     {
-      name: "Total Tiket Terjual",
-      value: totalTicketsSold,
-      subtext: isLiveBackend ? "Akumulasi sold_count database" : "Mode Simulasi",
+      name: "Event Draft",
+      value: draftCount,
+      subtext: isLiveBackend ? "Event yang belum diterbitkan" : "Data belum tersedia",
       icon: Ticket,
       iconClass: "text-[#0080f2] bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400",
     },
@@ -167,11 +127,11 @@ export default function AdminDashboard() {
             {isLiveBackend ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Data Terintegrasi Backend Asli (Agregasi Live)
+                Data berhasil dimuat
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
-                Mode Simulasi (Backend Dashboard Endpoint Belum Tersedia)
+                {loading ? "Memuat data..." : "Data belum tersedia"}
               </span>
             )}
           </div>
@@ -180,8 +140,8 @@ export default function AdminDashboard() {
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {isLiveBackend
-              ? "Metrik diagregasikan langsung dari database backend SQLite TicketWave (Event & Agency)."
-              : "Menampilkan data ringkasan simulasi frontend."}
+              ? "Ringkasan event dan agency terdaftar."
+              : "Ringkasan akan tampil setelah data berhasil dimuat."}
           </p>
         </div>
 
@@ -221,7 +181,7 @@ export default function AdminDashboard() {
                     {stat.name}
                   </p>
                   <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
-                    {loading ? "..." : stat.value}
+                    {loading ? "..." : stat.value ?? "—"}
                   </p>
                 </div>
                 <div
@@ -246,7 +206,7 @@ export default function AdminDashboard() {
               Daftar Event Terbaru
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Menampilkan event terbaru beserta status siklus hidup dan penjualan tiketnya
+              Menampilkan event terbaru beserta jadwal dan statusnya
             </p>
           </div>
           <Link
@@ -267,21 +227,21 @@ export default function AdminDashboard() {
                 <th className="px-3.5 py-2.5">Tipe &amp; Kota</th>
                 <th className="px-3.5 py-2.5">Jadwal</th>
                 <th className="px-3.5 py-2.5">Status</th>
-                <th className="px-3.5 py-2.5">Tiket Terjual</th>
+                
                 <th className="px-3.5 py-2.5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-400">
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
                     Memuat data event...
                   </td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
-                    Belum ada event yang terdaftar. Klik tombol <strong>Buat Event Baru</strong> di bawah untuk memulai.
+                  <td colSpan={5} className="py-8 text-center text-slate-500">
+                    {error ? "Data event gagal dimuat." : "Belum ada event yang terdaftar."}
                   </td>
                 </tr>
               ) : (
@@ -308,9 +268,7 @@ export default function AdminDashboard() {
                         {ev.status?.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="px-3.5 py-3 font-medium text-slate-900 dark:text-white">
-                      {ev.sold_count ?? 0} / {ev.total_quota ?? 0}
-                    </td>
+
                     <td className="px-3.5 py-3 text-right">
                       <Link
                         href={`/admin/event/${ev.id}`}
@@ -334,7 +292,7 @@ export default function AdminDashboard() {
             </div>
           ) : events.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500">
-              Belum ada event yang terdaftar.
+              {error ? "Data event gagal dimuat." : "Belum ada event yang terdaftar."}
             </div>
           ) : (
             events.slice(0, 8).map((ev) => (
@@ -363,10 +321,7 @@ export default function AdminDashboard() {
                 <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5 text-[11px] dark:border-slate-800">
                   <div className="text-slate-500 dark:text-slate-400">
                     <span>{ev.event_date || `Festival ${ev.days_count || 1} Hari`}</span>
-                    <span className="mx-1.5">•</span>
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {ev.sold_count ?? 0}/{ev.total_quota ?? 0} Tiket
-                    </span>
+
                   </div>
                   <Link
                     href={`/admin/event/${ev.id}`}
@@ -382,7 +337,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link
           href="/admin/event/create"
           className="group rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-[#0080f2] hover:shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:hover:border-[#0080f2]"
@@ -412,22 +367,6 @@ export default function AdminDashboard() {
           <h3 className="mt-3.5 text-sm font-semibold text-slate-900 dark:text-white">Tambah Agency</h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Daftarkan promotor / agency penyelenggara event beserta logo resminya
-          </p>
-        </Link>
-
-        <Link
-          href="/admin/users"
-          className="group rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-[#0080f2] hover:shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:hover:border-[#0080f2]"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0080f2] dark:bg-blue-950/40 dark:text-blue-400 group-hover:bg-[#0080f2] group-hover:text-white transition">
-              <Users size={20} />
-            </div>
-            <ArrowRight size={18} className="text-slate-400 transition group-hover:text-[#0080f2]" />
-          </div>
-          <h3 className="mt-3.5 text-sm font-semibold text-slate-900 dark:text-white">Akun &amp; Officer</h3>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Tinjau profil administrator dan status akun officer pada setiap agency
           </p>
         </Link>
       </div>

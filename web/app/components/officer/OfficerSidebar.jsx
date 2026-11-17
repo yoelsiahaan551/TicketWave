@@ -10,7 +10,6 @@ import {
   ScanLine,
   CheckCircle2,
   History,
-  Receipt,
   LogOut,
   X,
   Shield,
@@ -26,7 +25,6 @@ export default function OfficerSidebar({ mobileOpen, onClose }) {
     { name: "Event Tugas", href: "/officer/events", icon: Calendar },
     { name: "Scan Tiket", href: "/officer/scan", icon: ScanLine },
     { name: "Validasi Tiket", href: "/officer/validation", icon: CheckCircle2 },
-    { name: "Kasir Tunai (OTS)", href: "/officer/kasir", icon: Receipt },
     { name: "Riwayat Check-in", href: "/officer/history", icon: History },
   ];
 
@@ -41,8 +39,8 @@ export default function OfficerSidebar({ mobileOpen, onClose }) {
   };
 
   const displayName = user?.name || "Petugas Scanner";
-  const displayGate = user?.assigned_gate || "Gate A - VIP";
-  const badgeId = user?.badge_id || "OFF-2026-084";
+  const displayGate = user?.assigned_gate || "Gate belum dapat diverifikasi";
+  const badgeId = user?.badge_id || "—";
 
   const renderSidebarContent = (isMobile = false) => (
     <div className="flex h-full flex-col justify-between">

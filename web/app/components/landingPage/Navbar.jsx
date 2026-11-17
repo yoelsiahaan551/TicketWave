@@ -2,16 +2,25 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Search, Menu, X, ArrowRight, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useIsMounted } from "@/app/context/ThemeContext";
 
 export default function Navbar() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [scroll, setScroll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { user, isAuthenticated, isAdmin, isOfficer } = useAuth();
   const mounted = useIsMounted();
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    router.push(q ? `/user/event?search=${encodeURIComponent(q)}` : "/user/event");
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -99,17 +108,20 @@ export default function Navbar() {
         </nav>
 
         {/* Search Desktop */}
-        <div className="hidden lg:flex items-center relative">
+        <form onSubmit={handleSearch} className="hidden lg:flex items-center relative">
           <Search
             size={16}
-            className="absolute left-3.5 text-slate-400"
+            className="absolute left-3.5 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search event"
             placeholder="Search event..."
             className="w-60 h-10 pl-10 pr-4 text-xs rounded-xl bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-1 focus:ring-[#0080f2] focus:border-[#0080f2] shadow-xs transition dark:text-white"
           />
-        </div>
+        </form>
 
         {/* Button Desktop */}
         <div className="hidden lg:flex items-center gap-3">

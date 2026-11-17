@@ -32,8 +32,7 @@ export default function Newsletter() {
               </h2>
 
               <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-                Dapatkan informasi konser terbaru, promo eksklusif,
-                festival, dan event favorit langsung ke email kamu.
+                Langganan email belum tersedia. Jelajahi katalog untuk melihat event yang sedang dijual.
               </p>
 
             </div>
@@ -51,13 +50,15 @@ export default function Newsletter() {
 
                 <input
                   type="email"
+                  disabled
+                  aria-label="Newsletter belum tersedia"
                   placeholder="Enter your email..."
                   className="flex-1 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
                 />
 
-                <button className="rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white px-5 py-2.5 text-sm font-medium flex items-center gap-2 transition shadow-xs">
+                <button type="button" disabled className="rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white px-5 py-2.5 text-sm font-medium flex items-center gap-2 transition shadow-xs">
 
-                  Subscribe
+                  Belum tersedia
 
                   <ArrowRight size={15} />
 
@@ -66,8 +67,7 @@ export default function Newsletter() {
               </div>
 
               <p className="text-slate-500 mt-3 text-xs">
-                By subscribing, you agree to receive promotional
-                emails from TicketWave.
+                Alamat email tidak dikumpulkan melalui bagian ini.
               </p>
 
             </div>

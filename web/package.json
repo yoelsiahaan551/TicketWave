@@ -6,12 +6,14 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test app/lib/*.test.mjs tests/*.test.mjs"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.33.0",
-    "next": "16.3.1",
+    "next": "^16.4.6",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "^5.7.0"
@@ -23,7 +25,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

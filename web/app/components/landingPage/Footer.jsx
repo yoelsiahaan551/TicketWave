@@ -44,6 +44,9 @@ export default function Footer() {
   {[FaFacebookF, FaInstagram, FaYoutube, FaLinkedinIn].map(
     (Icon, i) => (
       <button
+        type="button"
+        disabled
+        title="Tautan sosial belum tersedia"
         key={i}
         aria-label="Social link"
         className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 transition flex items-center justify-center text-slate-300 hover:text-white"
@@ -105,8 +108,7 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm text-slate-400">
 
               <li>Jakarta, Indonesia</li>
-              <li>support@ticketwave.id</li>
-              <li>+62 812 3456 7890</li>
+              <li>Kontak dukungan belum tersedia.</li>
 
             </ul>
 

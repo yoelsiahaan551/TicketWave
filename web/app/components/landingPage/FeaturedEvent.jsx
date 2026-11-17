@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -11,8 +11,6 @@ import {
   ArrowRight,
   AlertTriangle,
   RefreshCw,
-  Info,
-  X,
 } from "lucide-react";
 import api from "@/app/lib/api";
 import { useLandingEvents } from "@/app/components/landingPage/useLandingEvents";
@@ -23,6 +21,7 @@ import {
   priceFromOf,
   effectiveTicketPrice,
   stockOf,
+  validEventId,
   formatEventDate,
   formatEventTime,
   isPurchasable,
@@ -41,32 +40,15 @@ export default function FeaturedEvent() {
   const featuredId = featured?.id ?? null;
 
   // Detail (GET /api/public/events/<id>) untuk kategori tiket, harga aktif & sisa kuota
+  const [detailReload, setDetailReload] = useState(0);
   const [detail, setDetail] = useState({ id: null, data: null, error: null });
-  const [bookingNotice, setBookingNotice] = useState(false);
-  const noticeTimerRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-    };
-  }, []);
-
-  const handleUnavailableBooking = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setBookingNotice(true);
-    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-    noticeTimerRef.current = setTimeout(() => {
-      setBookingNotice(false);
-    }, 4500);
-  };
-
   useEffect(() => {
     if (!featuredId) return;
     let ignore = false;
     api
       .get(`/public/events/${featuredId}`)
       .then((res) => {
+        if (!validEventId(res?.data?.event?.id) || String(res.data.event.id) !== String(featuredId) || !Array.isArray(res?.data?.ticket_types)) throw new Error("Respons detail tiket tidak valid.");
         if (!ignore) setDetail({ id: featuredId, data: res?.data || null, error: null });
       })
       .catch((err) => {
@@ -81,14 +63,17 @@ export default function FeaturedEvent() {
     return () => {
       ignore = true;
     };
-  }, [featuredId]);
+  }, [featuredId, detailReload]);
 
   const detailLoading = Boolean(featuredId) && detail.id !== featuredId;
-  const ticketTypes = detail.id === featuredId ? detail.data?.ticket_types || [] : [];
+  const ticketTypes = useMemo(
+    () => detail.id === featuredId ? detail.data?.ticket_types || [] : [],
+    [detail, featuredId]
+  );
 
   const ticketStats = useMemo(() => {
     if (!ticketTypes.length) return null;
-    const prices = ticketTypes.map(effectiveTicketPrice).filter((p) => p > 0);
+    const prices = ticketTypes.map(effectiveTicketPrice).filter((p) => p !== null);
     const remaining = ticketTypes.reduce((sum, t) => sum + stockOf(t), 0);
     const quota = ticketTypes.reduce((sum, t) => sum + Number(t.quota || 0), 0);
     const phase = ticketTypes.find((t) => t.active_phase)?.active_phase || null;
@@ -338,7 +323,8 @@ export default function FeaturedEvent() {
               ) : detail.error ? (
                 <p className="flex items-center gap-2 text-xs text-slate-400">
                   <AlertTriangle size={14} />
-                  Data kategori tiket gagal dimuat dari server: {detail.error}
+                  Data kategori tiket gagal dimuat: {detail.error}
+                  <button type="button" className="underline" onClick={() => { setDetail({ id: null, data: null, error: null }); setDetailReload((key) => key + 1); }}>Coba Lagi</button>
                 </p>
               ) : ticketStats ? (
                 <>
@@ -378,15 +364,14 @@ export default function FeaturedEvent() {
             <div className="flex flex-wrap gap-4 mt-8">
 
               {purchasable ? (
-                <button
-                  type="button"
-                  onClick={handleUnavailableBooking}
+                <Link
+                  href={`/user/event/${featured.id}#pilih-tiket`}
                   className="px-6 py-3 rounded-xl bg-[#0080f2] hover:bg-[#0070d4] text-white font-medium shadow-xs transition cursor-pointer text-sm"
                 >
 
                   Book Ticket
 
-                </button>
+                </Link>
               ) : (
                 <span className="px-6 py-3 rounded-xl bg-slate-800 text-slate-400 font-medium text-sm cursor-not-allowed">
                   Tidak Tersedia
@@ -412,24 +397,7 @@ export default function FeaturedEvent() {
 
       </div>
 
-      {bookingNotice && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex max-w-md items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm font-medium text-white shadow-2xl"
-        >
-          <Info size={18} className="shrink-0 text-slate-400" />
-          <span>Fitur pemesanan tiket belum tersedia saat ini.</span>
-          <button
-            type="button"
-            onClick={() => setBookingNotice(false)}
-            aria-label="Tutup notifikasi"
-            className="ml-2 rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
+
 
     </section>
   );

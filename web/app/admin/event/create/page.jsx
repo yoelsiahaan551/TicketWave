@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Upload,
@@ -12,6 +13,7 @@ import {
   Ticket,
 } from "lucide-react";
 import api from "@/app/lib/api";
+import { validateEventCreate } from "@/app/lib/adminForms";
 
 export default function CreateEventPage() {
   const router = useRouter();
@@ -47,7 +49,7 @@ export default function CreateEventPage() {
   ]);
 
   // Optional initial status transition after creation
-  const [initialStatus, setInitialStatus] = useState("on_sale");
+  const [initialStatus, setInitialStatus] = useState("draft");
 
   // Media files
   const [posterFile, setPosterFile] = useState(null);
@@ -57,16 +59,28 @@ export default function CreateEventPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [createdId, setCreatedId] = useState(null);
 
   useEffect(() => {
-    api
-      .get("/agencies", { page: 1, per_page: 50 })
-      .then((res) => {
-        const list = res.data?.items || [];
-        setAgencies(list);
-        if (list.length > 0) setAgencyId(String(list[0].id));
-      })
-      .catch(() => setAgencies([]));
+    let active = true;
+    async function loadAgencies() {
+      try {
+        const list = [];
+        let page = 1;
+        let totalPages = 1;
+        do {
+          const res = await api.get("/agencies", { page, per_page: 50 });
+          list.push(...(res.data?.items || []));
+          totalPages = res.data?.total_pages ?? 1;
+          page += 1;
+        } while (page <= totalPages);
+        if (active) setAgencies(list);
+      } catch (err) {
+        if (active) setError(err.message || "Gagal memuat pilihan agency.");
+      }
+    }
+    loadAgencies();
+    return () => { active = false; };
   }, []);
 
   const addFestivalArtist = () => {
@@ -151,6 +165,7 @@ export default function CreateEventPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (createdId || submitting) return;
     if (!agencyId) {
       setError("Silakan pilih Agency penyelenggara terlebih dahulu.");
       return;
@@ -167,10 +182,10 @@ export default function CreateEventPage() {
       city: city.trim(),
       description: description.trim() || undefined,
       ticket_types: ticketTypes
-        .filter((t) => t.name.trim())
+        
         .map((t) => {
           const validPhases = (t.phases || [])
-            .filter((p) => p.start_date && p.end_date)
+            
             .map((p) => ({
               phase_name: p.phase_name,
               start_date: p.start_date,
@@ -194,7 +209,7 @@ export default function CreateEventPage() {
     } else {
       payload.days_count = Number(daysCount);
       payload.festival_artists = festivalArtists
-        .filter((fa) => fa.artist_name.trim())
+        
         .map((fa) => ({
           day_number: Number(fa.day_number),
           artist_name: fa.artist_name.trim(),
@@ -202,10 +217,13 @@ export default function CreateEventPage() {
     }
 
     try {
+      validateEventCreate(payload);
       const res = await api.post("/events", payload);
       const createdId = res.data?.id;
 
       if (createdId) {
+        setCreatedId(createdId);
+        const failures = [];
         // Terapkan status awal (misalnya "on_sale" agar langsung muncul di katalog publik)
         if (initialStatus && initialStatus !== "draft") {
           try {
@@ -213,7 +231,7 @@ export default function CreateEventPage() {
               status: initialStatus,
             });
           } catch (statusErr) {
-            console.warn("Status patch warning:", statusErr);
+            failures.push(`Status gagal diperbarui: ${statusErr.message}`);
           }
         }
 
@@ -224,7 +242,7 @@ export default function CreateEventPage() {
             fd.append("poster", posterFile);
             await api.upload(`/events/${createdId}/poster`, fd);
           } catch (uploadErr) {
-            console.warn("Poster upload warning (Cloudinary backend):", uploadErr);
+            failures.push(`Poster gagal diunggah: ${uploadErr.message}`);
           }
         }
         if (bannerFile) {
@@ -233,8 +251,12 @@ export default function CreateEventPage() {
             fd.append("banner", bannerFile);
             await api.upload(`/events/${createdId}/banner`, fd);
           } catch (uploadErr) {
-            console.warn("Banner upload warning (Cloudinary backend):", uploadErr);
+            failures.push(`Banner gagal diunggah: ${uploadErr.message}`);
           }
+        }
+        if (failures.length) {
+          setError(`Event #${createdId} sudah dibuat. ${failures.join(" ")} Buka detail event untuk mencoba kembali.`);
+          return;
         }
         router.push(`/admin/event/${createdId}`);
       } else {
@@ -266,6 +288,7 @@ export default function CreateEventPage() {
         </p>
       </div>
 
+      {createdId && <Link href={`/admin/event/${createdId}`} className="text-xs font-medium text-[#0080f2] underline">Buka event #{createdId}</Link>}
       <form onSubmit={handleSubmit} className="w-full">
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
           {/* Left Column: Form Details & Tickets */}
@@ -756,7 +779,7 @@ export default function CreateEventPage() {
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || Boolean(createdId)}
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-50"
                 >
                   <Ticket size={15} />
@@ -778,7 +801,10 @@ export default function CreateEventPage() {
               </label>
               <label className="flex h-44 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {posterPreview ? (
-                  <img
+                  <Image
+                    width={640}
+                    height={480}
+                    unoptimized
                     src={posterPreview}
                     alt="Poster"
                     className="h-full w-full object-cover"
@@ -816,7 +842,10 @@ export default function CreateEventPage() {
               </label>
               <label className="flex h-36 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {bannerPreview ? (
-                  <img
+                  <Image
+                    width={640}
+                    height={360}
+                    unoptimized
                     src={bannerPreview}
                     alt="Banner"
                     className="h-full w-full object-cover"

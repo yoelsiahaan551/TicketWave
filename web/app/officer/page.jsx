@@ -1,36 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import {
-  getOfficerStats,
-  getOfficerHistory,
-} from "@/app/lib/officerService";
+import { getOfficerStatsAsync, getScanHistoryWithMeta } from "@/app/lib/officerService";
 import {
   ScanLine,
   CheckCircle2,
   XCircle,
   Clock,
-  MapPin,
   ArrowRight,
   ShieldCheck,
   Search,
   Calendar,
-  Radio,
-  FileCheck2,
-  Receipt,
 } from "lucide-react";
 
 export default function OfficerDashboardPage() {
   const { user } = useAuth();
-  const [stats] = useState(() => getOfficerStats());
-  const [recentActivities] = useState(() => getOfficerHistory().slice(0, 5));
-
-  const progressPercentage = Math.min(
-    100,
-    Math.round((stats.success_count / (stats.gate_quota || 500)) * 100)
-  );
+  const [stats, setStats] = useState(null);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [statsError, setStatsError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [reload, setReload] = useState(0);
+  const retry = () => {
+    setStats(null);
+    setRecentActivities([]);
+    setStatsError("");
+    setHistoryError("");
+    setStatsLoading(true);
+    setHistoryLoading(true);
+    setReload((value) => value + 1);
+  };
+  useEffect(() => {
+    let active = true;
+    getOfficerStatsAsync().then((data) => { if (active) setStats(data); })
+      .catch((error) => { if (active) setStatsError(error.message); })
+      .finally(() => { if (active) setStatsLoading(false); });
+    getScanHistoryWithMeta().then((response) => {
+      if (!active) return;
+      if (response.success) setRecentActivities(response.data.slice(0, 5));
+      else setHistoryError(response.error);
+    }).finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [reload]);
 
   const getStatusBadge = (status) => {
     const s = String(status || "").toLowerCase();
@@ -49,32 +63,32 @@ export default function OfficerDashboardPage() {
   const statCards = [
     {
       name: "Total Diperiksa",
-      value: stats.total_inspected,
-      subtext: "Akumulasi shift hari ini",
+      value: "—",
+      subtext: "Jumlah pemeriksaan belum tersedia",
       icon: ScanLine,
       iconColor: "text-[#0080f2] dark:text-blue-400",
       bgColor: "bg-blue-50 dark:bg-blue-950/40",
     },
     {
       name: "Check-in Berhasil",
-      value: stats.success_count,
-      subtext: "Tiket sah & gelang diserahkan",
+      value: statsLoading ? "..." : stats?.checked_in ?? "—",
+      subtext: "Seluruh event dan petugas, semua waktu",
       icon: CheckCircle2,
       iconColor: "text-emerald-700 dark:text-emerald-300",
       bgColor: "bg-emerald-50 dark:bg-emerald-950/40",
     },
     {
       name: "Tiket Ditolak",
-      value: stats.rejected_count,
-      subtext: "Duplikat atau tidak valid",
+      value: "—",
+      subtext: "Jumlah penolakan belum tersedia",
       icon: XCircle,
       iconColor: "text-red-700 dark:text-red-300",
       bgColor: "bg-red-50 dark:bg-red-950/40",
     },
     {
-      name: "Kapasitas Gate",
-      value: `${progressPercentage}%`,
-      subtext: `${stats.success_count} dari ${stats.gate_quota} kuota`,
+      name: "Tiket Valid + Digunakan",
+      value: statsLoading ? "..." : stats?.valid_or_used ?? "—",
+      subtext: "Seluruh event; bukan kapasitas gate",
       icon: ShieldCheck,
       iconColor: "text-slate-700 dark:text-slate-300",
       bgColor: "bg-slate-100 dark:bg-slate-800",
@@ -97,13 +111,6 @@ export default function OfficerDashboardPage() {
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
-            href="/officer/kasir"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:text-[#0080f2] transition"
-          >
-            <Receipt size={16} />
-            <span>Kasir OTS</span>
-          </Link>
-          <Link
             href="/officer/scan#manual"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:text-[#0080f2] transition"
           >
@@ -120,76 +127,14 @@ export default function OfficerDashboardPage() {
         </div>
       </div>
 
-      {/* Card Informasi Event & Shift yang Rapi */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/80">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-[#0080f2] dark:bg-blue-950/40 dark:text-blue-300">
-              <Calendar size={18} />
-            </div>
-            <div>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Penugasan Aktif Hari Ini
-              </span>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                {stats.active_event}
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#0080f2]" />
-              Operasional Gate Aktif
-            </span>
-            <span className="rounded-full border border-slate-200/80 bg-slate-50/70 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
-              {stats.shift_hours}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 text-xs sm:text-sm">
-          <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
-            <MapPin size={16} className="text-slate-400 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-normal">Lokasi &amp; Pintu:</span>
-              <span className="font-medium text-slate-900 dark:text-white">
-                {user?.assigned_gate || stats.assigned_gate}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
-            <Radio size={16} className="text-slate-400 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-normal">Saluran Komunikasi:</span>
-              <span className="font-medium text-slate-900 dark:text-white">
-                HT Channel 03 (Gate Team)
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
-            <FileCheck2 size={16} className="text-slate-400 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-normal">Total Masuk Gate:</span>
-              <span className="font-medium text-slate-900 dark:text-white">
-                {stats.success_count} / {stats.gate_quota} Pengunjung ({progressPercentage}%)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Bar Kuota */}
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <div
-              className="h-full rounded-full bg-[#0080f2] transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-        </div>
+        <Calendar size={18} className="text-[#0080f2]" />
+        <h2 className="mt-2 font-semibold text-slate-900 dark:text-white">Penugasan belum dapat diverifikasi</h2>
+        <p className="mt-1 text-sm text-slate-500">Data event, gate, shift, dan kapasitas penugasan belum tersedia. Hubungi koordinator untuk instruksi operasional.</p>
+        <Link href="/officer/events" className="mt-3 inline-block text-sm text-[#0080f2]">Lihat status penugasan</Link>
       </div>
+      {statsError && <p role="alert" className="text-sm text-red-600">Gagal memuat statistik: {statsError}</p>}
+      {(statsError || historyError) && <button type="button" onClick={retry} disabled={statsLoading || historyLoading} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Coba Lagi</button>}
 
       {/* 4 Komponen Kartu Statistik Konsisten */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -233,7 +178,7 @@ export default function OfficerDashboardPage() {
                 Aktivitas Check-in Terbaru
               </h2>
               <p className="text-xs font-normal text-slate-500 dark:text-slate-400 mt-0.5">
-                5 pemeriksaan tiket terakhir di gate penugasan Anda
+                5 check-in berhasil terbaru, seluruh event dan petugas (dari maksimal 50 catatan)
               </p>
             </div>
             <Link
@@ -245,6 +190,7 @@ export default function OfficerDashboardPage() {
             </Link>
           </div>
 
+          {(historyLoading || historyError || recentActivities.length === 0) && <p role="status" className="p-5 text-sm text-slate-500">{historyLoading ? "Memuat riwayat..." : historyError || "Belum ada check-in tercatat."}</p>}
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[600px] text-left text-sm">
@@ -389,7 +335,7 @@ export default function OfficerDashboardPage() {
                 <div>
                   <h4 className="font-medium text-slate-900 dark:text-slate-100">Pasang Gelang Wristband</h4>
                   <p className="text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed font-normal">
-                    Konfirmasi check-in lalu pasangkan gelang resmi pada pergelangan tangan pengunjung.
+                    Konfirmasi check-in dan tunggu CHECK-IN SELESAI dari server sebelum memasang gelang atau mempersilakan masuk.
                   </p>
                 </div>
               </div>
@@ -401,7 +347,7 @@ export default function OfficerDashboardPage() {
               Bantuan Supervisor Lapangan
             </span>
             <span className="text-slate-500 dark:text-slate-400 mt-0.5 block font-normal">
-              Hubungi Dani Prasetyo melalui radio HT Channel 03 jika terjadi kendala identitas atau tiket rusak.
+              Hubungi koordinator lapangan melalui saluran resmi penyelenggara jika terjadi kendala identitas atau tiket rusak.
             </span>
           </div>
         </div>

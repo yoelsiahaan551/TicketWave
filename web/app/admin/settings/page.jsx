@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import {
   User,
   Mail,
@@ -30,6 +29,9 @@ export default function AdminSettingsPage() {
   const checkSystemStatus = useCallback(async () => {
     await Promise.resolve();
     setChecking(true);
+    setHealth(null);
+    setTotalEvents(null);
+    setTotalAgencies(null);
     try {
       const [healthRes, evRes, agRes] = await Promise.allSettled([
         api.checkHealth(),
@@ -39,16 +41,16 @@ export default function AdminSettingsPage() {
 
       if (healthRes.status === "fulfilled") {
         const hData = healthRes.value?.data || healthRes.value;
-        setHealth(hData || { status: "ok", service: "TicketWave Backend" });
+        setHealth(hData || { status: "unknown" });
       } else {
         setHealth({ status: "unreachable", error: healthRes.reason?.message });
       }
 
       if (evRes.status === "fulfilled") {
-        setTotalEvents(evRes.value?.data?.total_items ?? 0);
+        setTotalEvents(evRes.value?.data?.total_items ?? null);
       }
       if (agRes.status === "fulfilled") {
-        setTotalAgencies(agRes.value?.data?.total_items ?? 0);
+        setTotalAgencies(agRes.value?.data?.total_items ?? null);
       }
     } finally {
       setChecking(false);
@@ -175,12 +177,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          <Link
-            href="/user/settings"
-            className="rounded-xl border border-slate-200/80 px-3.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:text-slate-200 dark:hover:border-[#0080f2] dark:hover:text-[#0080f2]"
-          >
-            Reset Password Akun &rarr;
-          </Link>
+
         </div>
       </div>
 
@@ -210,7 +207,7 @@ export default function AdminSettingsPage() {
                 <>
                   <AlertCircle className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-                    {checking ? "Memeriksa..." : "Offline"}
+                    {checking ? "Memeriksa..." : "Tidak dapat diverifikasi"}
                   </span>
                 </>
               )}
@@ -222,7 +219,7 @@ export default function AdminSettingsPage() {
               Total Event di Database
             </p>
             <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
-              {totalEvents !== null ? totalEvents : "-"}
+              {checking ? "..." : totalEvents ?? "—"}
             </p>
           </div>
 
@@ -231,7 +228,7 @@ export default function AdminSettingsPage() {
               Total Agency di Database
             </p>
             <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
-              {totalAgencies !== null ? totalAgencies : "-"}
+              {checking ? "..." : totalAgencies ?? "—"}
             </p>
           </div>
         </div>

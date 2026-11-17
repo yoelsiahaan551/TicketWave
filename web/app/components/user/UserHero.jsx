@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +12,8 @@ import {
   Sparkles,
   Receipt,
 } from "lucide-react";
-import api from "@/app/lib/api";
+import { useLandingEvents, useLandingCities } from "@/app/components/landingPage/useLandingEvents";
+import { formatRupiah, priceFromOf } from "@/app/components/landingPage/eventDisplay";
 import { useAuth } from "@/app/context/AuthContext";
 import { useIsMounted } from "@/app/context/ThemeContext";
 
@@ -21,46 +22,12 @@ export default function UserHero() {
   const { user } = useAuth();
   const mounted = useIsMounted();
 
-  const [featuredEvent, setFeaturedEvent] = useState(null);
-  const [totalEvents, setTotalEvents] = useState(0);
-  const [citiesCount, setCitiesCount] = useState(0);
+  const { events, totalItems: totalEvents, loading, error, retry } = useLandingEvents();
+  const { cities, loading: citiesLoading, error: cityError, retry: retryCities } = useLandingCities();
+  const featuredEvent = events[0] || null;
   const [searchQuery, setSearchQuery] = useState("");
   const [bookingCodeInput, setBookingCodeInput] = useState("");
 
-  useEffect(() => {
-    let ignore = false;
-
-    Promise.allSettled([
-      api.get("/public/events", { per_page: 3 }),
-      api.get("/public/events/cities"),
-    ]).then(([eventsRes, citiesRes]) => {
-      if (ignore) return;
-
-      if (
-        eventsRes.status === "fulfilled" &&
-        eventsRes.value?.success &&
-        eventsRes.value?.data
-      ) {
-        const items = eventsRes.value.data.items || [];
-        setTotalEvents(eventsRes.value.data.total_items || items.length);
-        if (items.length > 0) {
-          setFeaturedEvent(items[0]);
-        }
-      }
-
-      if (
-        citiesRes.status === "fulfilled" &&
-        citiesRes.value?.success &&
-        citiesRes.value?.data?.cities
-      ) {
-        setCitiesCount(citiesRes.value.data.cities.length);
-      }
-    });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   const handleSearchEvent = (e) => {
     e.preventDefault();
@@ -92,14 +59,6 @@ export default function UserHero() {
     }
   };
 
-  const formatPrice = (price) => {
-    if (!price) return "Cek Tiket";
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
 
   return (
     <section className="relative overflow-hidden bg-slate-950 py-16 lg:py-24">
@@ -178,11 +137,12 @@ export default function UserHero() {
             </form>
           </div>
 
-          {/* Real Stats from Backend */}
-          <div className="mt-8 grid grid-cols-3 gap-4 border-t border-white/10 pt-6 max-w-lg">
+          {error && <p role="alert" className="mt-3 text-sm text-white">Katalog gagal dimuat. <button type="button" onClick={retry} className="underline">Coba Lagi</button></p>}
+          {cityError && <p role="alert" className="mt-3 text-sm text-white">Daftar kota gagal dimuat. <button type="button" onClick={retryCities} className="underline">Coba Lagi</button></p>}
+          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 max-w-lg">
             <div>
               <p className="text-2xl font-bold tracking-tight text-white">
-                {totalEvents}
+                {loading ? "…" : error ? "–" : totalEvents}
               </p>
               <p className="mt-0.5 text-xs text-slate-400">
                 Event On Sale
@@ -190,20 +150,13 @@ export default function UserHero() {
             </div>
             <div>
               <p className="text-2xl font-bold tracking-tight text-white">
-                {citiesCount}
+                {citiesLoading ? "…" : cityError ? "–" : cities.length}
               </p>
               <p className="mt-0.5 text-xs text-slate-400">
                 Kota Tersedia
               </p>
             </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-white">
-                15m
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">
-                Garansi Kuota Checkout
-              </p>
-            </div>
+
           </div>
         </div>
 
@@ -276,7 +229,7 @@ export default function UserHero() {
                       Mulai Dari
                     </p>
                     <p className="mt-0.5 text-xl font-bold text-[#0080f2]">
-                      {formatPrice(featuredEvent.price_from)}
+                      {formatRupiah(priceFromOf(featuredEvent)) || "Lihat detail harga"}
                     </p>
                   </div>
 
@@ -292,7 +245,7 @@ export default function UserHero() {
                 <Ticket size={28} />
               </div>
               <h2 className="mt-4 text-lg font-bold text-white">
-                Jelajahi Katalog Event Resmi
+                {loading ? "Memuat event…" : error ? "Event gagal dimuat" : "Belum ada event yang sedang dijual"}
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-slate-300">
                 Semua event yang berstatus <span className="font-semibold text-white/90">On Sale</span> di sistem akan tampil otomatis beserta kuota dan harga aktifnya.

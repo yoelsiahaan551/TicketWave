@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Building2,
   Plus,
@@ -43,6 +44,9 @@ export default function AdminAgencyList() {
       setTotalPages(res.data?.total_pages || 1);
       setTotalItems(res.data?.total_items ?? (res.data?.items || []).length);
     } catch (err) {
+      setTotalItems(null);
+      setTotalPages(1);
+      setAgencies([]);
       setError(err.message || "Gagal memuat daftar agency.");
     } finally {
       setLoading(false);
@@ -92,7 +96,7 @@ export default function AdminAgencyList() {
             Agency Management
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Kelola data penyelenggara event. Total: {totalItems} agency.
+            Kelola data penyelenggara event. Total: {loading ? "..." : error ? "—" : totalItems} agency.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -171,7 +175,10 @@ export default function AdminAgencyList() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {agency.logo_url ? (
-                      <img
+                      <Image
+                        width={40}
+                        height={40}
+                        unoptimized
                         src={agency.logo_url}
                         alt={agency.name}
                         className="h-10 w-10 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
@@ -183,7 +190,7 @@ export default function AdminAgencyList() {
                     )}
                     <div>
                       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {agency.name}
+                        <Link href={`/admin/agency/${agency.id}`} className="hover:text-[#0080f2] hover:underline">{agency.name}</Link>
                       </h3>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         ID #{agency.id}

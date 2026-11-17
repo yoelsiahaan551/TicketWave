@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Music2, MapPin, CalendarDays } from "lucide-react";
 import api from "@/app/lib/api";
+import { readEventList } from "@/app/components/landingPage/eventDisplay";
 
 const FALLBACK_ARTIST_IMAGE =
   "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80";
@@ -11,16 +12,21 @@ const FALLBACK_ARTIST_IMAGE =
 export default function FavoriteArtist() {
   const [lineupItems, setLineupItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let ignore = false;
     const fetchArtistLineups = async () => {
       setLoading(true);
+      setError(false);
       try {
         const response = await api.get("/public/events", {
           page: 1,
           per_page: 8,
         });
-        const events = response.data?.items || [];
+        const events = readEventList(response).items;
+        if (ignore) return;
         const mapped = events.map((ev) => ({
           id: ev.id,
           artistName:
@@ -36,13 +42,16 @@ export default function FavoriteArtist() {
         }));
         setLineupItems(mapped.slice(0, 4));
       } catch {
+        if (ignore) return;
+        setError(true);
         setLineupItems([]);
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
-    fetchArtistLineups();
-  }, []);
+    const timer = setTimeout(fetchArtistLineups, 0);
+    return () => { ignore = true; clearTimeout(timer); };
+  }, [reloadKey]);
 
   return (
     <section className="bg-slate-50 py-20 transition-colors dark:bg-slate-950">
@@ -81,6 +90,11 @@ export default function FavoriteArtist() {
                 className="aspect-[4/5] animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800"
               />
             ))}
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-xl border border-slate-200 p-8 text-center">
+            <p>Daftar penampil gagal dimuat.</p>
+            <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-3 text-[#0080f2] underline">Coba Lagi</button>
           </div>
         ) : lineupItems.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-xs dark:border-slate-800 dark:bg-slate-900">

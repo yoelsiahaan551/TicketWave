@@ -15,6 +15,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import api from "@/app/lib/api";
+import TicketQr from "@/app/components/user/TicketQr";
+import { getTicketDisplayStatus } from "@/app/lib/payment";
 import {
   fetchAllSavedBookings,
   saveBookingEntry,
@@ -29,6 +31,8 @@ const statusStyles = {
 };
 
 const statusLabels = {
+  pending_payment: "Menunggu Pembayaran",
+  expired: "Kedaluwarsa",
   valid: "Valid / Aktif",
   used: "Sudah Check-In",
   cancelled: "Dibatalkan",
@@ -36,6 +40,7 @@ const statusLabels = {
 
 export default function TicketPage() {
   const [tickets, setTickets] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -47,36 +52,18 @@ export default function TicketPage() {
   const loadAllTickets = useCallback(async () => {
     await Promise.resolve();
     setLoading(true);
+    setLoadError(null);
+    setSelectedTicket(null);
     try {
-      // 1. Ambil tiket resmi pengguna terautentikasi langsung dari database backend
-      const res = await api.get("/user/tickets", { page: 1, per_page: 100 }, { silent: true });
-      if (res && res.success && res.data?.items) {
-        const mapped = res.data.items.map((t) => ({
-          ...t,
-          event_id: t.event?.id,
-          event_name: t.event?.name || "Event TicketWave",
-          artist_name: t.event?.artist_name || "Penampil Utama",
-          venue: t.event?.venue ? `${t.event.venue}, ${t.event.city || ""}` : t.event?.city || "-",
-          event_date: t.event?.event_date,
-          event_time: t.event?.event_time,
-          ticket_type_name: t.ticket_type?.name || "Regular",
-        }));
-        setTickets(mapped);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // Fallback ke agregasi booking tersimpan
-    }
-
-    try {
-      const bookings = await fetchAllSavedBookings(api);
+      const { bookings, errors, total } = await fetchAllSavedBookings();
+      setLoadError(errors.length ? `${errors.length} dari ${total} kode gagal dimuat. Daftar dan jumlah hanya mencakup hasil yang berhasil dimuat. ${errors.map((error) => `${error.booking_code}: ${error.message}${error.status ? ` (HTTP ${error.status})` : ""}`).join("; ")} Gunakan Muat Ulang Tiket untuk mencoba lagi.` : null);
       const aggregated = [];
 
       bookings.forEach(({ booking, event, ticket_type, tickets: tList }) => {
         (tList || []).forEach((t) => {
           aggregated.push({
             ...t,
+            status: getTicketDisplayStatus(booking, t),
             booking_code: booking?.booking_code,
             booking_status: booking?.status,
             buyer_name: booking?.buyer_name,
@@ -97,8 +84,9 @@ export default function TicketPage() {
       });
 
       setTickets(aggregated);
-    } catch {
+    } catch (err) {
       setTickets([]);
+      setLoadError(err.message || "Gagal memuat tiket dari server.");
     } finally {
       setLoading(false);
     }
@@ -120,6 +108,7 @@ export default function TicketPage() {
     setLookupError(null);
     try {
       const res = await api.get(`/checkout/${encodeURIComponent(code)}`);
+      if (!res.success || !res.data?.booking) throw new Error(res.message || "Respons pesanan tidak valid.");
       if (res.data?.booking) {
         saveBookingEntry({
           booking_code: res.data.booking.booking_code,
@@ -156,7 +145,7 @@ export default function TicketPage() {
               Tiket Saya
             </h1>
             <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
-              Daftar e-ticket resmi dari seluruh pesanan Anda beserta kode QR unik (<code className="font-mono text-xs">qr_token</code>) untuk check-in di lokasi event.
+              Tiket dari kode booking yang disimpan pada perangkat ini. Status dibaca dari server; daftar ini bukan seluruh riwayat akun Anda.
             </p>
           </div>
 
@@ -217,6 +206,7 @@ export default function TicketPage() {
           )}
         </div>
 
+        {loadError && <p role="alert" className="mt-4 rounded-xl border border-red-200 p-4 text-sm text-red-700 dark:text-red-300">{loadError}</p>}
         {/* Filter Tabs */}
         <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
           {[
@@ -336,6 +326,7 @@ export default function TicketPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedTicket(ticket)}
+                    disabled={ticket.booking_status !== "paid" || ticket.status !== "valid"}
                     className="mt-auto w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-3.5 py-2 text-xs font-medium text-white shadow-xs transition"
                   >
                     Tampilkan QR &amp; Detail
@@ -347,7 +338,7 @@ export default function TicketPage() {
         )}
 
         {/* Empty State */}
-        {!loading && filteredTickets.length === 0 && (
+        {!loading && !loadError && filteredTickets.length === 0 && (
           <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
               <Ticket className="h-6 w-6" />
@@ -369,7 +360,7 @@ export default function TicketPage() {
         )}
 
         {/* QR Code Detail Modal */}
-        {selectedTicket && (
+        {!loading && selectedTicket && selectedTicket.booking_status === "paid" && selectedTicket.status === "valid" && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
             onClick={() => setSelectedTicket(null)}
@@ -396,10 +387,7 @@ export default function TicketPage() {
 
               <div className="p-5">
                 <div className="mx-auto flex w-fit flex-col items-center rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                  <QrCode className="h-32 w-32 text-slate-900 dark:text-white" />
-                  <p className="mt-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                    QR: {selectedTicket.qr_token}
-                  </p>
+                  <TicketQr value={selectedTicket.qr_token || selectedTicket.ticket_code} />
                 </div>
 
                 <div className="mt-4 space-y-2 text-xs">

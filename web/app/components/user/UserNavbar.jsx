@@ -18,7 +18,6 @@ import {
   Home,
   CalendarDays,
   Receipt,
-  Heart,
   Shield,
 } from "lucide-react";
 
@@ -49,11 +48,6 @@ export default function UserNavbar() {
       href: "/user/pesanan",
       icon: Receipt,
     },
-    {
-      name: "Favorit",
-      href: "/user/favorites",
-      icon: Heart,
-    },
   ];
 
   const isActive = (href) => {
@@ -72,25 +66,6 @@ export default function UserNavbar() {
     mounted && isAuthenticated && user?.email
       ? user.email
       : "Mode Pemesanan Tamu";
-
-  const initials =
-    mounted && isAuthenticated && user?.name
-      ? user.name
-          .split(" ")
-          .map((n) => n[0])
-          .slice(0, 2)
-          .join("")
-          .toUpperCase()
-      : "TW";
-
-  const roleLabel =
-    mounted && isAuthenticated && user
-      ? user.role === "admin"
-        ? "Administrator"
-        : user.role === "officer"
-        ? "Officer"
-        : "Member TicketWave"
-      : "Guest Checkout";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl transition-colors">

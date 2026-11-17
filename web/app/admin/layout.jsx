@@ -11,7 +11,6 @@ import {
   LayoutDashboard,
   Building2,
   Calendar,
-  Users,
   LogOut,
   Menu,
   X,
@@ -44,7 +43,6 @@ export default function AdminLayout({ children }) {
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Agencies", href: "/admin/agency", icon: Building2 },
     { name: "Events & Phases", href: "/admin/event", icon: Calendar },
-    { name: "Users & Officers", href: "/admin/users", icon: Users },
   ];
 
   const isActive = (href) => {

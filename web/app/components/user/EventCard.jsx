@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { CalendarDays, MapPin, ArrowRight, Music2, Sparkles, Building2 } from "lucide-react";
+import { validEventId, priceFromOf, handleImageError } from "@/app/components/landingPage/eventDisplay";
 
 const FALLBACK_POSTER =
   "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1000&q=80";
 
 export default function EventCard({ event }) {
-  if (!event) return null;
+  if (!event || !validEventId(event.id)) return null;
 
   const formatPrice = (price) => {
     if (price === null || price === undefined) return null;
@@ -37,7 +38,7 @@ export default function EventCard({ event }) {
     }
   };
 
-  const formattedPrice = formatPrice(event.price_from);
+  const formattedPrice = formatPrice(priceFromOf(event));
 
   return (
     <Link
@@ -49,6 +50,7 @@ export default function EventCard({ event }) {
         <img
           src={event.poster_url || event.banner_url || FALLBACK_POSTER}
           alt={event.name}
+          onError={handleImageError}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
 

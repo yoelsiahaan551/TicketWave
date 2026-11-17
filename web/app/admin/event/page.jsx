@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import api from "@/app/lib/api";
 
@@ -44,6 +45,7 @@ const statusStyle = {
 export default function AdminEventList() {
   const [events, setEvents] = useState([]);
   const [agencies, setAgencies] = useState([]);
+  const [agencyError, setAgencyError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
@@ -59,10 +61,25 @@ export default function AdminEventList() {
   const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
-    api
-      .get("/agencies", { page: 1, per_page: 50 })
-      .then((res) => setAgencies(res.data?.items || []))
-      .catch(() => setAgencies([]));
+    let active = true;
+    async function loadAgencies() {
+      try {
+        const list = [];
+        let page = 1;
+        let totalPages = 1;
+        do {
+          const res = await api.get("/agencies", { page, per_page: 50 });
+          list.push(...(res.data?.items || []));
+          totalPages = res.data?.total_pages ?? 1;
+          page += 1;
+        } while (page <= totalPages);
+        if (active) setAgencies(list);
+      } catch (err) {
+        if (active) setAgencyError(err.message || "Gagal memuat pilihan agency.");
+      }
+    }
+    loadAgencies();
+    return () => { active = false; };
   }, []);
 
   const fetchEvents = useCallback(async () => {
@@ -85,6 +102,8 @@ export default function AdminEventList() {
       setTotalPages(res.data?.total_pages || 1);
       setTotalItems(res.data?.total_items ?? (res.data?.items || []).length);
     } catch (err) {
+      setTotalItems(null);
+      setTotalPages(1);
       setError(err.message || "Gagal memuat daftar event.");
     } finally {
       setLoading(false);
@@ -163,7 +182,7 @@ export default function AdminEventList() {
             Event Management
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Kelola seluruh event, ubah status penjualan, dan atur fase harga tiket. Total: {totalItems} event.
+            Kelola seluruh event, ubah status penjualan, dan atur fase harga tiket. Total: {loading ? "..." : error ? "—" : totalItems} event.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -218,14 +237,37 @@ export default function AdminEventList() {
           />
           <input
             type="text"
-            placeholder="Filter kota..."
+            list="admin-event-cities"
+            placeholder="Filter kota (Semua Kota)..."
             value={cityFilter}
             onChange={(e) => {
               setCityFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-[#0080f2]"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-7 text-xs text-slate-900 outline-none transition focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-[#0080f2]"
           />
+          {cityFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setCityFilter("");
+                setPage(1);
+              }}
+              title="Reset ke Semua Kota"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={12} />
+            </button>
+          )}
+          <datalist id="admin-event-cities">
+            <option value="Jakarta" />
+            <option value="Bandung" />
+            <option value="Surabaya" />
+            <option value="Yogyakarta" />
+            <option value="Bali" />
+            <option value="Medan" />
+            <option value="Semarang" />
+          </datalist>
         </div>
 
         <select
@@ -274,6 +316,7 @@ export default function AdminEventList() {
         </select>
       </div>
 
+      {agencyError && <p role="alert" className="rounded-xl border border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800">{agencyError} Muat ulang halaman untuk mencoba lagi.</p>}
       {error && (
         <div className="rounded-xl border border-slate-300 bg-slate-100 p-4 text-center text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
           {error}
@@ -305,7 +348,21 @@ export default function AdminEventList() {
               ) : events.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-slate-500">
-                    Tidak ada event yang cocok dengan filter ini.
+                    <p>
+                      Tidak ada event yang cocok dengan filter{cityFilter ? ` di kota "${cityFilter}"` : ""}.
+                    </p>
+                    {cityFilter && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCityFilter("");
+                          setPage(1);
+                        }}
+                        className="mt-2 text-xs font-medium text-[#0080f2] hover:underline"
+                      >
+                        Tampilkan Semua Kota
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -411,7 +468,21 @@ export default function AdminEventList() {
             </div>
           ) : events.length === 0 ? (
             <div className="py-10 text-center text-xs text-slate-500">
-              Tidak ada event yang cocok dengan filter ini.
+              <p>
+                Tidak ada event yang cocok dengan filter{cityFilter ? ` di kota "${cityFilter}"` : ""}.
+              </p>
+              {cityFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCityFilter("");
+                    setPage(1);
+                  }}
+                  className="mt-2 text-xs font-medium text-[#0080f2] hover:underline"
+                >
+                  Tampilkan Semua Kota
+                </button>
+              )}
             </div>
           ) : (
             events.map((event) => (

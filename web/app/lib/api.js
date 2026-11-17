@@ -9,8 +9,9 @@
  * - Structured validation error formatting
  */
 
-import { isDummyModeEnabled, getStoredDemoSession } from '@/app/lib/dummyAuth';
-import { handleDummyApiRequest, updateDummyMedia } from '@/app/lib/dummyApiHandler';
+import { fetchJSON } from './http.js';
+
+const SESSION_CLEARED_EVENT = 'ticketwave:session-cleared';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
@@ -107,40 +108,13 @@ function isInvalidTokenError(error) {
   const combined = candidates.join(' ').toLowerCase().trim();
   if (!combined) return false;
 
-  const tokenErrorKeywords = [
-    'token',
-    'segment',
-    'signature',
-    'padding',
-    'header',
-    'authorization',
-    'bearer',
-    'decode',
-    'algorithm',
-    'crypto',
-    'jwt',
-    'claim',
-    'issuer',
-    'audience',
-    'not yet valid',
-  ];
-
-  return tokenErrorKeywords.some((keyword) => combined.includes(keyword));
+  return /not enough segments|too many segments|invalid (?:header|crypto) padding|bad authorization header|signature verification failed|only (?:non-refresh|refresh) tokens are allowed|(?:token|jwt).*(?:invalid|expired|malformed|revoked|not yet valid)|(?:invalid|expired|malformed|revoked).*(?:token|jwt)|(?:invalid|missing) claim|(?:issuer|audience).*(?:invalid|does not match)/i.test(combined);
 }
-
-const SIMULATED_ENDPOINTS = [
-  /^\/admin\/dashboard/,
-  /^\/users(\?|$)/,
-  /^\/events\/\d+\/ticket-types/,
-  /^\/user\/bookings(\?|$)/,
-  /^\/user\/tickets(\?|$)/,
-  /^\/kasir/,
-  /^\/user\/favorites/,
-];
 
 class APIClient {
   constructor(baseURL = API_BASE) {
     this.baseURL = baseURL;
+    this.sessionVersion = 0;
   }
 
   isInvalidTokenError(error) {
@@ -148,22 +122,7 @@ class APIClient {
   }
 
   async request(endpoint, options = {}) {
-    // Intercept lokal jika sedang dalam mode Dummy Auth atau memanggil endpoint simulasi frontend (belum ada di backend)
-    const isSimulated = SIMULATED_ENDPOINTS.some((pattern) => pattern.test(endpoint));
-    if (typeof window !== 'undefined' && (isDummyModeEnabled() || isSimulated)) {
-      const demoUser = getStoredDemoSession();
-      const dummyResponse = handleDummyApiRequest(endpoint, options, demoUser);
-      if (dummyResponse) {
-        if (dummyResponse.success === false) {
-          const err = new Error(dummyResponse.message || "Request failed");
-          err.status = dummyResponse.status || 400;
-          err.data = dummyResponse;
-          throw err;
-        }
-        return dummyResponse;
-      }
-    }
-
+    const requestSessionVersion = this.sessionVersion;
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getAccessToken();
     const { silent = false, ...fetchOptions } = options;
@@ -180,8 +139,7 @@ class APIClient {
     };
 
     try {
-      const response = await fetch(url, config);
-      const rawData = await response.json().catch(() => ({}));
+      const { response, raw: rawData } = await fetchJSON(url, config, { endpoint });
       const data = normalizeResponse(rawData);
 
       // Token expired or invalid on protected endpoints → try refresh
@@ -192,7 +150,7 @@ class APIClient {
         endpoint.startsWith('/auth/request-password-reset') ||
         endpoint.startsWith('/auth/reset-password');
 
-      if (response.status === 401 && !isAuthPublicEndpoint) {
+      if (response.status === 401 && !isAuthPublicEndpoint && requestSessionVersion === this.sessionVersion) {
         const refreshed = await this.refreshToken({ silent });
         if (refreshed) {
           const newToken = this.getAccessToken();
@@ -200,8 +158,7 @@ class APIClient {
             ...headers,
             'Authorization': `Bearer ${newToken}`,
           };
-          const retryResponse = await fetch(url, { ...config, headers: retryHeaders });
-          const retryRaw = await retryResponse.json().catch(() => ({}));
+          const { response: retryResponse, raw: retryRaw } = await fetchJSON(url, { ...config, headers: retryHeaders }, { endpoint, retry: false });
           const retryData = normalizeResponse(retryRaw);
           if (!retryResponse.ok || (retryData && retryData.success === false)) {
             if (retryResponse.status === 401) {
@@ -221,13 +178,6 @@ class APIClient {
       }
 
       if (!response.ok || (data && data.success === false)) {
-        if (typeof window !== 'undefined') {
-          const demoUser = getStoredDemoSession();
-          const fallbackRes = handleDummyApiRequest(endpoint, options, demoUser);
-          if (fallbackRes && fallbackRes.success) {
-            return fallbackRes;
-          }
-        }
         const err = new Error(formatErrorMessage(data, response.status));
         err.status = response.status;
         err.errors = data.errors || (typeof data.message === 'object' ? data.message : null);
@@ -238,15 +188,9 @@ class APIClient {
 
       return data;
     } catch (error) {
-      if (typeof window !== 'undefined') {
-        const demoUser = getStoredDemoSession();
-        const fallbackRes = handleDummyApiRequest(endpoint, options, demoUser);
-        if (fallbackRes && fallbackRes.success) {
-          return fallbackRes;
-        }
-      }
+      if (error.status === 422 && requestSessionVersion === this.sessionVersion && isInvalidTokenError(error)) this.clearTokens();
       if (!silent) {
-        console.error('[API Error]', endpoint, error);
+        console.error('[API Error]', endpoint.split('?')[0].replace(/(verify-email\/).+/, '$1[redacted]'), error.status || 'network');
       }
       if (!error.status && (error.name === 'TypeError' || error.message?.includes('fetch'))) {
         error.status = 0;
@@ -257,6 +201,18 @@ class APIClient {
   }
 
   async refreshToken(options = {}) {
+    const key = `${this.sessionVersion}:${this.getRefreshToken() || ''}`;
+    if (this.activeRefresh?.key === key) return this.activeRefresh.promise;
+    const pending = { key, promise: this.performRefresh(options) };
+    this.activeRefresh = pending;
+    try {
+      return await pending.promise;
+    } finally {
+      if (this.activeRefresh === pending) this.activeRefresh = null;
+    }
+  }
+
+  async performRefresh(options = {}) {
     const { silent = false } = options;
     if (typeof window === 'undefined') return false;
     const sessionRefresh = sessionStorage.getItem('refresh_token');
@@ -265,9 +221,10 @@ class APIClient {
     if (!refreshToken) return false;
 
     const persistInLocal = !sessionRefresh && !!localRefresh;
+    const sessionVersion = this.sessionVersion;
 
     try {
-      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+      const { response, raw: refreshRaw } = await fetchJSON(`${this.baseURL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,8 +232,9 @@ class APIClient {
         },
       });
 
+      if (sessionVersion !== this.sessionVersion || this.getRefreshToken() !== refreshToken) return false;
       if (!response.ok) {
-        const rawErr = await response.json().catch(() => ({}));
+        const rawErr = refreshRaw;
         const errData = normalizeResponse(rawErr);
         if (response.status >= 500) {
           const err = new Error(formatErrorMessage(errData, response.status));
@@ -291,20 +249,21 @@ class APIClient {
         return false;
       }
 
-      const rawData = await response.json();
+      const rawData = refreshRaw;
       const data = normalizeResponse(rawData);
       const newAccessToken =
         data.data?.access_token ||
         data.message?.access_token ||
         (typeof data.data === 'string' && data.message?.access_token);
       if (data.success && newAccessToken) {
+        if (sessionVersion !== this.sessionVersion || this.getRefreshToken() !== refreshToken) return false;
         this.setAccessToken(newAccessToken, persistInLocal);
         return true;
       }
       return false;
     } catch (error) {
       if (!silent) {
-        console.error('[Token Refresh Failed]', error);
+        console.error('[Token Refresh Failed]', error.status || 'network');
       }
       if (error?.status >= 500 || !error?.status) {
         throw error;
@@ -378,21 +337,38 @@ class APIClient {
     }
   }
 
-  clearTokens() {
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.removeItem('access_token');
-        sessionStorage.removeItem('refresh_token');
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('ticketwave_verification_token');
-        sessionStorage.removeItem('ticketwave_checkout');
-      } catch {
-        // ignore
+  subscribeSessionCleared(listener) {
+    if (typeof window === 'undefined') return () => {};
+    const onStorage = (event) => {
+      if (event.storageArea !== localStorage) return;
+      if ((event.key === null || ['access_token', 'refresh_token', 'user'].includes(event.key)) &&
+          event.newValue === null && !this.getAccessToken() && !this.getRefreshToken()) {
+        this.sessionVersion++;
+        listener();
       }
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('ticketwave_verification_token');
+    };
+    window.addEventListener(SESSION_CLEARED_EVENT, listener);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(SESSION_CLEARED_EVENT, listener);
+      window.removeEventListener('storage', onStorage);
+    };
+  }
+
+  clearTokens() {
+    this.sessionVersion++;
+    if (typeof window !== 'undefined') {
+      for (const name of ['sessionStorage', 'localStorage']) {
+        try {
+          const store = name === 'sessionStorage' ? sessionStorage : localStorage;
+          for (const key of ['access_token', 'refresh_token', 'user', 'ticketwave_verification_token', 'ticketwave_checkout']) {
+            store.removeItem(key);
+          }
+        } catch {
+          // Storage may be blocked; React must still stop showing the cleared session.
+        }
+      }
+      window.dispatchEvent(new Event(SESSION_CLEARED_EVENT));
     }
   }
 
@@ -424,54 +400,40 @@ class APIClient {
     return this.request(url, { ...actualOptions, method: 'GET' });
   }
 
-  async post(endpoint, body = {}) {
+  async post(endpoint, body = {}, options = {}) {
     return this.request(endpoint, {
+      ...options,
       method: 'POST',
       body: JSON.stringify(body),
     });
   }
 
-  async put(endpoint, body = {}) {
+  async put(endpoint, body = {}, options = {}) {
     return this.request(endpoint, {
+      ...options,
       method: 'PUT',
       body: JSON.stringify(body),
     });
   }
 
-  async patch(endpoint, body = {}) {
+  async patch(endpoint, body = {}, options = {}) {
     return this.request(endpoint, {
+      ...options,
       method: 'PATCH',
       body: JSON.stringify(body),
     });
   }
 
-  async delete(endpoint) {
-    return this.request(endpoint, { method: 'DELETE' });
+  async delete(endpoint, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'DELETE',
+    });
   }
 
   // Upload dengan multipart/form-data
   async upload(endpoint, formData) {
-    if (typeof window !== 'undefined' && isDummyModeEnabled()) {
-      const demoUser = getStoredDemoSession();
-      if (demoUser) {
-        let uploadedUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80";
-        const m = endpoint.match(/\/events\/([^/]+)\/(poster|banner)/);
-        if (m) {
-          const eventId = m[1];
-          const mediaType = m[2];
-          uploadedUrl = mediaType === 'poster'
-            ? "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80"
-            : "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80";
-          updateDummyMedia(eventId, mediaType, uploadedUrl);
-        }
-        return {
-          success: true,
-          data: { url: uploadedUrl },
-          message: "File uploaded successfully (Demo Mode)",
-        };
-      }
-    }
-
+    const requestSessionVersion = this.sessionVersion;
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getAccessToken();
 
@@ -481,37 +443,36 @@ class APIClient {
     }
 
     try {
-      const response = await fetch(url, {
+      const { response, raw: rawData } = await fetchJSON(url, {
         method: 'POST',
         headers,
         body: formData,
-      });
-
-      const rawData = await response.json().catch(() => ({}));
+      }, { endpoint, retry: false });
       const data = normalizeResponse(rawData);
 
       // Token expired or invalid on protected endpoints → try refresh
-      if (response.status === 401) {
+      if (response.status === 401 && requestSessionVersion === this.sessionVersion) {
         const refreshed = await this.refreshToken();
         if (refreshed) {
           const newToken = this.getAccessToken();
-          const retryResponse = await fetch(url, {
+          const { response: retryResponse, raw: retryRaw } = await fetchJSON(url, {
             method: 'POST',
             headers: {
               ...headers,
               'Authorization': `Bearer ${newToken}`,
             },
             body: formData,
-          });
-          const retryRaw = await retryResponse.json().catch(() => ({}));
+          }, { endpoint, retry: false });
           const retryData = normalizeResponse(retryRaw);
-          if (!retryResponse.ok && !retryData.success) {
+          if (!retryResponse.ok || retryData.success === false) {
             if (retryResponse.status === 401) {
               this.clearTokens();
             }
             const err = new Error(formatErrorMessage(retryData, retryResponse.status));
             err.status = retryResponse.status;
             err.errors = retryData.errors || null;
+            err.data = retryData;
+            err.raw = retryRaw;
             throw err;
           }
           return retryData;
@@ -520,34 +481,31 @@ class APIClient {
         }
       }
 
-      if (!response.ok && !data.success) {
+      if (!response.ok || data.success === false) {
         const err = new Error(formatErrorMessage(data, response.status));
         err.status = response.status;
         err.errors = data.errors || null;
+        err.data = data;
+        err.raw = rawData;
         throw err;
       }
 
       return data;
     } catch (error) {
-      console.error('[Upload Error]', endpoint, error);
+      if (error.status === 422 && requestSessionVersion === this.sessionVersion && isInvalidTokenError(error)) this.clearTokens();
+      console.error('[Upload Error]', endpoint.split('?')[0], error.status || 'network');
       throw error;
     }
   }
 
   // Health check endpoint (/health berada di root server, bukan /api/health)
   async checkHealth() {
-    if (typeof window !== 'undefined' && isDummyModeEnabled()) {
-      const demoUser = getStoredDemoSession();
-      if (demoUser) {
-        return { status: "ok", mode: "dummy_mode", database: "connected (simulated)" };
-      }
-    }
     const rootUrl = this.baseURL.replace(/\/api\/?$/, '');
-    const response = await fetch(`${rootUrl}/health`, { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    const { response, raw } = await fetchJSON(`${rootUrl}/health`, { method: 'GET' }, { endpoint: '/health' });
+    if (response.ok) {
+      return raw;
     }
-    return await response.json();
+    throw new Error(`HTTP ${response.status}`);
   }
 }
 

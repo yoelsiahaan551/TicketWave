@@ -23,7 +23,7 @@ export function bannerOf(event) {
 
 export function formatRupiah(value) {
   const n = Number(value);
-  if (value === null || value === undefined || Number.isNaN(n)) return null;
+  if (value === null || value === undefined || value === "" || !Number.isFinite(n) || n < 0) return null;
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -31,27 +31,47 @@ export function formatRupiah(value) {
   }).format(n);
 }
 
-/** Harga "mulai dari" dari list endpoint. null jika backend tidak mengirim angka valid. */
-export function priceFromOf(event) {
-  const p = event?.price_from;
-  return typeof p === "number" && !Number.isNaN(p) ? p : null;
+export function validEventId(value) {
+  return (typeof value === "number" || typeof value === "string") &&
+    /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value));
 }
 
-/** Harga efektif satu ticket type dari detail endpoint (final_price atau base_price - diskon fase aktif). */
+function nonNegativeNumber(value) {
+  if ((typeof value !== "number" && typeof value !== "string") || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+export function readEventList(response) {
+  const data = response?.data;
+  if (!Array.isArray(data?.items) || data.items.some((event) => !validEventId(event?.id))) {
+    throw new Error("Respons katalog event tidak valid. Silakan coba lagi.");
+  }
+  return data;
+}
+
+/** Invalid or structured list prices cannot be trusted as a starting price. */
+export function priceFromOf(event) {
+  return nonNegativeNumber(event?.price_from);
+}
+
+/** Recompute phased prices from the ticket's own fields: the public route's pricing helper is miscalled. */
 export function effectiveTicketPrice(t) {
-  if (typeof t?.final_price === "number" && !Number.isNaN(t.final_price)) {
-    return t.final_price;
+  const base = nonNegativeNumber(t?.base_price);
+  if (t?.active_phase) {
+    const discount = nonNegativeNumber(t.active_phase.discount_percent);
+    if (base === null || discount === null || discount > 100) return null;
+    return Math.round(base * (1 - discount / 100) * 100) / 100;
   }
-  const base = Number(t?.base_price || 0);
-  if (t?.active_phase && t.active_phase.discount_percent !== undefined) {
-    const disc = Number(t.active_phase.discount_percent || 0);
-    return Math.round(base * (1 - disc / 100));
-  }
-  return base;
+  return nonNegativeNumber(t?.final_price) ?? base;
 }
 
 export function stockOf(t) {
-  return t?.stock_available ?? t?.remaining ?? Math.max(0, (t?.quota || 0) - (t?.sold_count || 0));
+  const stock = nonNegativeNumber(t?.stock_available);
+  if (stock !== null) return Math.floor(stock);
+  const quota = nonNegativeNumber(t?.quota);
+  const sold = nonNegativeNumber(t?.sold_count);
+  return quota === null || sold === null ? 0 : Math.max(0, Math.floor(quota - sold));
 }
 
 export function formatEventDate(event, opts = { day: "numeric", month: "short", year: "numeric" }) {

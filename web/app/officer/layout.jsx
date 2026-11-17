@@ -38,7 +38,7 @@ export default function OfficerLayout({ children }) {
             <div className="hidden sm:flex items-center gap-2 min-w-0 truncate">
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-blue-50 px-3 py-1 text-xs font-medium text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 truncate">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#0080f2] shrink-0" />
-                <span className="truncate">Shift Aktif: {user?.assigned_gate || "Gate A - VIP"}</span>
+                <span className="truncate">Gate: {user?.assigned_gate || "Belum dapat diverifikasi"}</span>
               </span>
             </div>
 

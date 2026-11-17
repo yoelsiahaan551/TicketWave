@@ -21,10 +21,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import api from "@/app/lib/api";
-import {
-  saveBookingEntry,
-  getSavedPaymentUrl,
-} from "@/app/lib/bookingStorage";
+import { saveBookingEntry } from "@/app/lib/bookingStorage";
+import { getOfficialPaymentUrl, getTicketDisplayStatus } from "@/app/lib/payment";
 
 const statusStyles = {
   paid: "border border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
@@ -47,6 +45,7 @@ export default function PesananDetailPage() {
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -58,6 +57,7 @@ export default function PesananDetailPage() {
     const fetchDetail = async () => {
       setLoading(true);
       setError(null);
+      setNotFound(false);
       try {
         const res = await api.get(`/checkout/${encodeURIComponent(bookingCode)}`);
         if (isMounted) {
@@ -76,7 +76,14 @@ export default function PesananDetailPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setError(err.message || "Gagal memuat detail pesanan");
+          if (err.status === 404) {
+            setNotFound(true);
+            setError(
+              `Kode pesanan '${bookingCode}' tidak ditemukan dalam basis data sistem. Pastikan kode booking yang Anda masukkan benar atau lakukan pemesanan baru.`
+            );
+          } else {
+            setError(err.message || "Gagal memuat detail pesanan");
+          }
         }
       } finally {
         if (isMounted) {
@@ -113,14 +120,10 @@ export default function PesananDetailPage() {
       const res = await api.post(
         `/checkout/${encodeURIComponent(bookingData.booking.booking_code)}/cancel`
       );
-      if (res.success && res.data?.booking) {
+      if (res?.success === true && res.data?.booking?.status === "cancelled") {
         setBookingData((prev) => ({
           ...prev,
           booking: res.data.booking,
-          tickets: (prev.tickets || []).map((t) => ({
-            ...t,
-            status: "cancelled",
-          })),
         }));
         setActionMessage({
           tipe: "sukses",
@@ -142,24 +145,15 @@ export default function PesananDetailPage() {
     }
   };
 
-  const handleSimulatePayment = () => {
-    if (!bookingData?.booking) return;
-    setBookingData((prev) => ({
-      ...prev,
-      booking: {
-        ...prev.booking,
-        status: "paid",
-        paid_at: new Date().toISOString(),
-      },
-      tickets: (prev.tickets || []).map((t) => ({
-        ...t,
-        status: "valid",
-      })),
-    }));
-    setActionMessage({
-      tipe: "sukses",
-      teks: "Pembayaran berhasil disimulasikan! Status pesanan kini 'Dibayar' dan e-tiket telah aktif.",
-    });
+  const handleRefreshStatus = async () => {
+    setActionMessage(null);
+    try {
+      const res = await api.get(`/checkout/${encodeURIComponent(bookingCode)}`);
+      if (!res.success || !res.data?.booking) throw new Error("Respons pesanan tidak valid.");
+      setBookingData(res.data);
+    } catch (err) {
+      setActionMessage({ tipe: "error", teks: err.message || "Gagal memuat status terbaru." });
+    }
   };
 
   const formatTanggal = (d) => {
@@ -200,7 +194,7 @@ export default function PesananDetailPage() {
         <div className="w-full max-w-md rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
           <AlertCircle className="mx-auto mb-3 h-10 w-10 text-slate-500" />
           <h2 className="mb-1.5 text-base font-semibold text-slate-900 dark:text-white">
-            Pesanan Tidak Ditemukan
+            {notFound ? "Pesanan Tidak Ditemukan" : "Gagal Memuat Pesanan"}
           </h2>
           <p className="mb-5 text-xs text-slate-500 dark:text-slate-400">
             {error || "Data pesanan dengan kode tersebut tidak ditemukan di database."}
@@ -217,10 +211,7 @@ export default function PesananDetailPage() {
   }
 
   const { booking, event, ticket_type, tickets = [] } = bookingData;
-  const resolvedPaymentUrl =
-    booking.payment_url ||
-    getSavedPaymentUrl(booking.booking_code) ||
-    `https://app.midtrans.com/snap/v2/vtweb/${booking.booking_code}`;
+  const resolvedPaymentUrl = getOfficialPaymentUrl(booking);
 
   return (
     <div className="min-h-screen bg-slate-50 transition-colors dark:bg-slate-950">
@@ -440,7 +431,9 @@ export default function PesananDetailPage() {
           </div>
           <div className="space-y-2.5">
             {tickets.length > 0 ? (
-              tickets.map((ticket, idx) => (
+              tickets.map((rawTicket, idx) => {
+                const ticket = { ...rawTicket, status: getTicketDisplayStatus(booking, rawTicket) };
+                return (
                 <div
                   key={ticket.id || idx}
                   className="flex flex-col justify-between gap-3 rounded-xl border border-slate-100 p-3 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center dark:border-slate-800 dark:hover:bg-slate-800/50"
@@ -455,7 +448,7 @@ export default function PesananDetailPage() {
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         Kategori: <span className="font-medium text-slate-700 dark:text-slate-300">{ticket_type?.name || "Standard"}</span>
-                        {ticket.qr_token ? ` • QR Token: ${ticket.qr_token.slice(0, 12)}...` : ""}
+
                       </p>
                     </div>
                   </div>
@@ -472,10 +465,11 @@ export default function PesananDetailPage() {
                       ? "Valid"
                       : ticket.status === "used"
                       ? "Sudah Check-In"
-                      : "Dibatalkan"}
+                      : ticket.status === "pending_payment" ? "Menunggu Pembayaran"
+                      : ticket.status === "expired" ? "Kedaluwarsa" : "Dibatalkan"}
                   </span>
                 </div>
-              ))
+              ); })
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 Tidak ada data tiket spesifik untuk pesanan ini.
@@ -522,14 +516,14 @@ export default function PesananDetailPage() {
             <>
               <button
                 type="button"
-                onClick={handleSimulatePayment}
+                onClick={handleRefreshStatus}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-center text-xs font-semibold text-[#0080f2] transition hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Simulasi Bayar Lunas (Demo)</span>
+                <span>Periksa Status dari Server</span>
               </button>
 
-              <a
+              {resolvedPaymentUrl ? <a
                 href={resolvedPaymentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -537,7 +531,7 @@ export default function PesananDetailPage() {
               >
                 Lanjutkan Pembayaran (Midtrans Snap)
                 <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </a> : <p role="alert" className="rounded-xl border border-amber-200 p-3 text-xs text-slate-700 dark:text-slate-300">Tautan pembayaran resmi belum tersedia. Pembayaran belum dikonfirmasi; hubungi penyelenggara atau periksa kembali status.</p>}
 
               <button
                 type="button"

@@ -55,15 +55,10 @@ export default function SettingsPage() {
       const res = await api.post("/auth/request-password-reset", {
         email: targetEmail,
       });
-      const returnedToken = res.data?.reset_token;
-      if (returnedToken) {
-        setResetToken(returnedToken);
-      }
+      if (res?.success !== true) throw new Error("Permintaan reset belum dikonfirmasi server.");
       setRequestMsg({
-        type: "success",
-        text: returnedToken
-          ? "Token reset berhasil dibuat dan telah diisi otomatis pada formulir di bawah."
-          : res.message || "Permintaan reset password berhasil dikirim.",
+        type: "warning",
+        text: "Permintaan diterima. Pengiriman email reset belum tersedia pada layanan ini; email belum dikirim. Hubungi pengelola untuk bantuan pemulihan akun. Respons ini tidak mengonfirmasi apakah email terdaftar.",
       });
     } catch (err) {
       setRequestMsg({
@@ -86,6 +81,7 @@ export default function SettingsPage() {
         token: resetToken.trim(),
         new_password: newPassword,
       });
+      if (res?.success !== true) throw new Error("Perubahan password belum dikonfirmasi server.");
       setResetMsg({
         type: "success",
         text: res.message || "Password berhasil diperbarui! Silakan gunakan password baru saat login berikutnya.",
@@ -254,7 +250,7 @@ export default function SettingsPage() {
             </h2>
           </div>
           <p className="mb-5 text-xs text-slate-500 dark:text-slate-400">
-            Terhubung langsung dengan endpoint <code className="font-mono text-[11px]">POST /api/auth/request-password-reset</code> dan <code className="font-mono text-[11px]">POST /api/auth/reset-password</code>.
+            Pengiriman email reset belum tersedia. Hubungi pengelola untuk bantuan pemulihan akun. Jika Anda sudah memiliki token reset yang sah, gunakan formulir konfirmasi di bawah.
           </p>
 
           {/* Step 1: Request Reset Token */}
@@ -290,7 +286,7 @@ export default function SettingsPage() {
               <div
                 className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300"
               >
-                {requestMsg.type === "error" ? (
+                {requestMsg.type !== "success" ? (
                   <AlertCircle size={13} />
                 ) : (
                   <CheckCircle2 size={13} />

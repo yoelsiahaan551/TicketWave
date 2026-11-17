@@ -5,15 +5,18 @@ import Link from "next/link";
 import { ArrowRight, CalendarX2, RefreshCw } from "lucide-react";
 import api from "@/app/lib/api";
 import EventCard from "@/app/components/user/EventCard";
-import { getStoredEvents } from "@/app/lib/dummyApiHandler";
+import { readEventList } from "@/app/components/landingPage/eventDisplay";
 
 export default function UpcomingConcert() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchUpcomingEvents = async () => {
-    await Promise.resolve();
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchUpcomingEvents = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -21,37 +24,22 @@ export default function UpcomingConcert() {
         page: 1,
         per_page: 6,
       });
-      let items = response.data?.items || [];
-      try {
-        const localEvents = getStoredEvents().filter((e) => e.status === "on_sale");
-        const extraEvents = localEvents.filter(
-          (le) =>
-            !items.some(
-              (be) =>
-                String(be.id) === String(le.id) ||
-                (be.name && le.name && be.name.toLowerCase() === le.name.toLowerCase())
-            )
-        );
-        if (extraEvents.length > 0) {
-          items = [...extraEvents, ...items];
-        }
-      } catch {
-        // ignore
-      }
+      const { items } = readEventList(response);
+      if (ignore) return;
       setEvents(items);
     } catch (err) {
+      if (ignore) return;
+      setEvents([]);
       setError(err.message || "Gagal memuat daftar event.");
     } finally {
-      setLoading(false);
+      if (!ignore) setLoading(false);
     }
-  };
-
-  useEffect(() => {
+    };
     const t = setTimeout(() => {
       fetchUpcomingEvents();
     }, 0);
-    return () => clearTimeout(t);
-  }, []);
+    return () => { ignore = true; clearTimeout(t); };
+  }, [reloadKey]);
 
   return (
     <section className="bg-slate-50 py-20 transition-colors dark:bg-slate-950">
@@ -107,7 +95,7 @@ export default function UpcomingConcert() {
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{error}</p>
             <button
               type="button"
-              onClick={fetchUpcomingEvents}
+              onClick={() => setReloadKey((key) => key + 1)}
               className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0080f2] px-4 py-2 text-sm font-medium text-white shadow-xs transition hover:bg-[#0070d4]"
             >
               <RefreshCw size={15} />

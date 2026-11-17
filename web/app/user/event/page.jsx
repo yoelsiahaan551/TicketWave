@@ -7,7 +7,7 @@ import EventFilter from "@/app/components/user/EventFilter";
 import EmptyState from "@/app/components/user/EmptyState";
 import { SearchX, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import api from "@/app/lib/api";
-import { getStoredEvents } from "@/app/lib/dummyApiHandler";
+import { readEventList } from "@/app/components/landingPage/eventDisplay";
 
 function EventListContent() {
   const searchParams = useSearchParams();
@@ -22,17 +22,20 @@ function EventListContent() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cityError, setCityError] = useState(null);
+  const [cityReload, setCityReload] = useState(0);
 
   const [search, setSearch] = useState(initialQuery);
   const [kategori, setKategori] = useState("Semua");
   const [lokasi, setLokasi] = useState(initialCity);
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState("");
-  const [urutan, setUrutan] = useState("terdekat");
+  const [urutan, setUrutan] = useState("date_asc");
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const KATEGORI_EVENT = ["Semua", "Single", "Festival"];
 
@@ -41,21 +44,24 @@ function EventListContent() {
     api
       .get("/public/events/cities")
       .then((response) => {
-        if (!ignore && response.data?.cities) {
-          setCities(["Semua", ...response.data.cities]);
+        if (!Array.isArray(response.data?.cities)) throw new Error("Daftar kota tidak valid.");
+        if (!ignore) {
+          setCityError(null);
+          setCities([...new Set(["Semua", initialCity, ...response.data.cities.filter((city) => typeof city === "string" && city)])]);
         }
       })
       .catch(() => {
-        if (!ignore) setCities(["Semua"]);
+        if (!ignore) setCityError("Daftar kota gagal dimuat. Filter kota belum lengkap.");
       });
 
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [initialCity, cityReload]);
 
-  const fetchEvents = async () => {
-    await Promise.resolve();
+  useEffect(() => {
+    let ignore = false;
+    const fetchEvents = async () => {
     setLoading(true);
     setError(null);
 
@@ -70,80 +76,31 @@ function EventListContent() {
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
 
+
     try {
+      if (dateFrom && dateTo && dateFrom > dateTo) throw new Error("Tanggal akhir tidak boleh sebelum tanggal awal.");
       const response = await api.get("/public/events", params);
-      let items = response.data?.items || [];
-
-      // Integrasikan event berstatus on_sale yang ditambahkan Superadmin
-      try {
-        const localEvents = getStoredEvents().filter((e) => e.status === "on_sale");
-        const extraEvents = localEvents.filter(
-          (le) =>
-            !items.some(
-              (be) =>
-                String(be.id) === String(le.id) ||
-                (be.name && le.name && be.name.toLowerCase() === le.name.toLowerCase())
-            )
-        );
-        if (extraEvents.length > 0) {
-          let filteredExtra = extraEvents;
-          if (search.trim()) {
-            const q = search.trim().toLowerCase();
-            filteredExtra = filteredExtra.filter(
-              (e) =>
-                (e.name && e.name.toLowerCase().includes(q)) ||
-                (e.artist_name && e.artist_name.toLowerCase().includes(q))
-            );
-          }
-          if (kategori !== "Semua") {
-            filteredExtra = filteredExtra.filter(
-              (e) => (e.event_type || "").toLowerCase() === kategori.toLowerCase()
-            );
-          }
-          if (lokasi !== "Semua") {
-            filteredExtra = filteredExtra.filter(
-              (e) => (e.city || "").toLowerCase() === lokasi.toLowerCase()
-            );
-          }
-          items = [...filteredExtra, ...items];
-        }
-      } catch {
-        // ignore
-      }
-
-      items = [...items].sort((a, b) => {
-        if (urutan === "terdekat") {
-          return new Date(a.event_date || 0) - new Date(b.event_date || 0);
-        }
-        if (urutan === "termurah") {
-          return (a.price_from || 0) - (b.price_from || 0);
-        }
-        if (urutan === "termahal") {
-          return (b.price_from || 0) - (a.price_from || 0);
-        }
-        if (urutan === "nama") {
-          return (a.name || "").localeCompare(b.name || "");
-        }
-        return 0;
-      });
+      const data = readEventList(response);
+      if (ignore) return;
+      const items = data.items;
 
       setEvents(items);
       setTotalPages(response.data?.total_pages || 1);
       setTotalItems(response.data?.total_items ?? items.length);
     } catch (err) {
+      if (ignore) return;
+      setEvents([]);
+      setTotalItems(0);
       setError(err.message || "Gagal memuat katalog event.");
     } finally {
-      setLoading(false);
+      if (!ignore) setLoading(false);
     }
-  };
-
-  useEffect(() => {
+    };
     const t = setTimeout(() => {
       fetchEvents();
-    }, 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, kategori, lokasi, dateFrom, dateTo, urutan, page]);
+    }, 200);
+    return () => { ignore = true; clearTimeout(t); };
+  }, [search, kategori, lokasi, dateFrom, dateTo, page, reloadKey]);
 
   const handleResetFilters = () => {
     setSearch("");
@@ -151,7 +108,7 @@ function EventListContent() {
     setLokasi("Semua");
     setDateFrom("");
     setDateTo("");
-    setUrutan("terdekat");
+    setUrutan("date_asc");
     setPage(1);
   };
 
@@ -202,14 +159,20 @@ function EventListContent() {
           setPage(1);
         }}
         urutan={urutan}
-        onUrutan={setUrutan}
+        onUrutan={(val) => {
+          setUrutan(val);
+          setPage(1);
+        }}
         onReset={handleResetFilters}
       />
 
+      {cityError && <div role="alert" className="mt-3 text-sm text-red-600">
+        {cityError} <button type="button" onClick={() => setCityReload((value) => value + 1)}>Coba Lagi</button>
+      </div>}
       {/* Info jumlah hasil */}
       <div className="mt-6 flex items-center justify-between">
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-          {loading ? "Memuat event..." : `Menampilkan ${events.length} dari ${totalItems} event aktif`}
+          {loading ? "Memuat event..." : error ? "Katalog belum dapat dimuat" : `Menampilkan ${events.length} dari ${totalItems} event aktif`}
         </p>
       </div>
 
@@ -239,7 +202,7 @@ function EventListContent() {
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{error}</p>
           <button
             type="button"
-            onClick={fetchEvents}
+            onClick={() => setReloadKey((key) => key + 1)}
             className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#0080f2] px-4 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4]"
           >
             <RefreshCw size={14} />
@@ -301,6 +264,11 @@ function EventListContent() {
   );
 }
 
+function EventListContentWithQuery() {
+  const searchParams = useSearchParams();
+  return <EventListContent key={searchParams.toString()} />;
+}
+
 export default function EventListPage() {
   return (
     <Suspense
@@ -310,7 +278,7 @@ export default function EventListPage() {
         </div>
       }
     >
-      <EventListContent />
+      <EventListContentWithQuery />
     </Suspense>
   );
 }

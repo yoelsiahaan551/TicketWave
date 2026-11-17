@@ -25,7 +25,7 @@ export default function EventFilter({
     lokasi !== "Semua" ||
     Boolean(dateFrom) ||
     Boolean(dateTo) ||
-    urutan !== "terdekat";
+    urutan !== "date_asc";
 
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs transition-colors dark:border-slate-800 dark:bg-slate-900">
@@ -37,6 +37,7 @@ export default function EventFilter({
         />
         <input
           type="text"
+          aria-label="Cari event atau artis"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Cari nama konser, festival, atau kata kunci..."
@@ -49,6 +50,7 @@ export default function EventFilter({
         {/* Kategori (event_type) */}
         <select
           value={kategori}
+          aria-label="Tipe event"
           onChange={(e) => onKategori(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-[#0080f2]"
         >
@@ -68,6 +70,7 @@ export default function EventFilter({
         {/* Lokasi (city) */}
         <select
           value={lokasi}
+          aria-label="Kota event"
           onChange={(e) => onLokasi(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-[#0080f2]"
         >
@@ -88,6 +91,7 @@ export default function EventFilter({
             <input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={(e) => onDateFrom(e.target.value)}
               title="Dari tanggal"
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-[#0080f2]"
@@ -105,6 +109,7 @@ export default function EventFilter({
             <input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={(e) => onDateTo(e.target.value)}
               title="Sampai tanggal"
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-[#0080f2]"
@@ -112,18 +117,16 @@ export default function EventFilter({
           </div>
         )}
 
-        {/* Sorting */}
+        {/* Sorting - Hanya menampilkan opsi yang benar-benar didukung Backend */}
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
           <SlidersHorizontal size={14} className="shrink-0 text-slate-500 dark:text-slate-400" />
           <select
             value={urutan}
             onChange={(e) => onUrutan(e.target.value)}
+            aria-label="Urutkan Berdasarkan"
             className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none dark:text-slate-200"
           >
-            <option value="terdekat">Tanggal Terdekat</option>
-            <option value="termurah">Harga Terendah</option>
-            <option value="termahal">Harga Tertinggi</option>
-            <option value="nama">Nama A-Z</option>
+            <option value="date_asc">Tanggal Terdekat (Standar)</option>
           </select>
         </div>
       </div>

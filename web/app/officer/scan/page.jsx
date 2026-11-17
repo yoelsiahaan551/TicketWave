@@ -4,26 +4,21 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { inspectTicketCode } from "@/app/lib/officerService";
+import { inspectTicketCodeAsync } from "@/app/lib/officerService";
 import {
   Camera,
   Flashlight,
   RefreshCw,
   Search,
   CheckCircle2,
-  AlertTriangle,
-  XCircle,
   ShieldCheck,
   VideoOff,
   MapPin,
   Clock,
-  Radio,
   Info,
-  Calendar,
   Sparkles,
   RotateCcw,
   ExternalLink,
-  ShieldAlert,
   Volume2,
   VolumeX,
   Play,
@@ -59,13 +54,19 @@ export default function OfficerScanPage() {
   const [scannedResult, setScannedResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Refs for scanner lifecycle
+  // Refs for scanner lifecycle and concurrency control
   const scannerRef = useRef(null);
+  const validationRequestRef = useRef(0);
+  const processingRef = useRef(false);
+  const resultHeldRef = useRef(false);
   const lastScannedRef = useRef({ code: "", timestamp: 0 });
   const isStartingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const activeSessionIdRef = useRef(0);
+  const handleQrDetectedRef = useRef(null);
 
-  const assignedGate = user?.assigned_gate || "Gate A - VIP & Early Bird";
-  const shiftText = user?.shift || "Shift Sore (15:00 - 23:00 WIB)";
+  const assignedGate = user?.assigned_gate || "Belum dapat diverifikasi";
+  const shiftText = user?.shift || "Belum dapat diverifikasi";
 
   // Synthesize audible beep upon decoding a QR code
   const playBeepSound = useCallback(() => {
@@ -91,7 +92,8 @@ export default function OfficerScanPage() {
 
   // Handle successful QR code decode from camera stream
   const handleQrDetected = useCallback(
-    (decodedText) => {
+    async (decodedText) => {
+      if (processingRef.current || resultHeldRef.current) return;
       if (!decodedText || !decodedText.trim()) return;
       const cleanCode = decodedText.trim();
       const now = Date.now();
@@ -115,55 +117,109 @@ export default function OfficerScanPage() {
       playBeepSound();
       setIsProcessing(true);
 
-      // Parse ticket format using officer service
-      const ticketInfo = inspectTicketCode(cleanCode);
-
-      setScannedResult({
-        rawCode: cleanCode,
-        timestamp: new Date().toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-        ticket: ticketInfo?.ticket || null,
-        status: ticketInfo?.status || "TERBACA",
-        isFormatMatch:
-          cleanCode.toUpperCase().startsWith("TW-") ||
-          cleanCode.toUpperCase().startsWith("TWV-") ||
-          cleanCode.toUpperCase().startsWith("TKT-") ||
-          cleanCode.toUpperCase().startsWith("TKTW-"),
-      });
-
-      setTimeout(() => {
-        setIsProcessing(false);
-      }, 350);
+      processingRef.current = true;
+      const request = ++validationRequestRef.current;
+      setScannedResult(null);
+      try {
+        const ticketInfo = await inspectTicketCodeAsync(cleanCode);
+        if (!isMountedRef.current || request !== validationRequestRef.current) return;
+        resultHeldRef.current = true;
+        setScannedResult({ ...ticketInfo, rawCode: cleanCode,
+          timestamp: new Date().toLocaleTimeString("id-ID") });
+      } finally {
+        processingRef.current = false;
+        if (isMountedRef.current) setIsProcessing(false);
+      }
     },
     [playBeepSound]
   );
 
+  // Sync ref for handleQrDetected to avoid restarting scanner when other callbacks change
+  useEffect(() => {
+    handleQrDetectedRef.current = handleQrDetected;
+  }, [handleQrDetected]);
+
+  // Stop all active MediaStream tracks on any video element in the QR container
+  const stopAllMediaTracks = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const container = document.getElementById("ticketwave-qr-reader");
+    if (container) {
+      const videos = container.querySelectorAll("video");
+      videos.forEach((video) => {
+        if (video.srcObject && typeof video.srcObject.getTracks === "function") {
+          video.srcObject.getTracks().forEach((track) => {
+            try {
+              track.stop();
+            } catch {}
+          });
+          video.srcObject = null;
+        }
+      });
+    }
+  }, []);
+
   // Stop camera scanner safely
   const stopScanner = useCallback(async () => {
+    activeSessionIdRef.current++;
+    isStartingRef.current = false;
+
     if (scannerRef.current) {
+      const instance = scannerRef.current;
+      scannerRef.current = null;
       try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
+        if (instance.isScanning) {
+          await instance.stop();
         }
-        scannerRef.current.clear();
       } catch (err) {
         console.warn("Scanner stop warning:", err);
       }
-      scannerRef.current = null;
+      try {
+        instance.clear();
+      } catch (err) {
+        console.warn("Scanner clear warning:", err);
+      }
     }
-    setCameraActive(false);
-    setTorchOn(false);
-  }, []);
+
+    stopAllMediaTracks();
+
+    if (isMountedRef.current) {
+      setCameraActive(false);
+      setCameraLoading(false);
+      setTorchOn(false);
+    }
+  }, [stopAllMediaTracks]);
 
   // Start HTML5 QR Code Scanner
   const startScanner = useCallback(async () => {
-    if (isStartingRef.current) return;
+    if (isStartingRef.current) {
+      console.warn("startScanner already in progress, skipping concurrent invocation.");
+      return;
+    }
+
+    const sessionId = ++activeSessionIdRef.current;
     isStartingRef.current = true;
     setCameraLoading(true);
     setCameraError(null);
+
+    // Stop previous instance & media tracks directly without invalidating current session
+    if (scannerRef.current) {
+      const prevInstance = scannerRef.current;
+      scannerRef.current = null;
+      try {
+        if (prevInstance.isScanning) {
+          await prevInstance.stop();
+        }
+      } catch {}
+      try {
+        prevInstance.clear();
+      } catch {}
+    }
+    stopAllMediaTracks();
+
+    if (sessionId !== activeSessionIdRef.current || !isMountedRef.current) {
+      isStartingRef.current = false;
+      return;
+    }
 
     // Check secure context
     if (typeof window !== "undefined") {
@@ -182,6 +238,7 @@ export default function OfficerScanPage() {
             "Buka aplikasi melalui http://localhost:3000 atau protokol HTTPS untuk mengizinkan akses sensor kamera.",
         });
         setCameraLoading(false);
+        setCameraActive(false);
         isStartingRef.current = false;
         return;
       }
@@ -195,45 +252,53 @@ export default function OfficerScanPage() {
     ) {
       setCameraError({
         type: "unsupported",
-        title: "Perangkat Tidak Didukung",
+        title: "Perangkat / Browser Tidak Didukung",
         message:
-          "Browser ini tidak mendukung MediaDevices API untuk membaca kamera.",
+          "Browser ini tidak mendukung MediaDevices API untuk membaca sensor kamera.",
         instruction:
-          "Gunakan browser modern seperti Google Chrome, Safari, atau Firefox versi terbaru.",
+          "Gunakan browser modern seperti Google Chrome, Microsoft Edge, Safari, atau Firefox versi terbaru.",
       });
       setCameraLoading(false);
+      setCameraActive(false);
       isStartingRef.current = false;
       return;
     }
 
-    // Stop previous instance if any
-    await stopScanner();
-
-    // Check for container
+    // Check for container DOM element
     const readerElement = document.getElementById("ticketwave-qr-reader");
     if (!readerElement) {
       setCameraLoading(false);
+      setCameraActive(false);
       isStartingRef.current = false;
       return;
     }
 
     try {
       // Query permission status if available
-      if (navigator.permissions && navigator.permissions.query) {
+      if (typeof navigator !== "undefined" && navigator.permissions && navigator.permissions.query) {
         try {
           const perm = await navigator.permissions.query({ name: "camera" });
-          setPermissionState(perm.state);
-          perm.onchange = () => setPermissionState(perm.state);
+          if (isMountedRef.current) {
+            setPermissionState(perm.state);
+            perm.onchange = () => {
+              if (isMountedRef.current) setPermissionState(perm.state);
+            };
+          }
         } catch {}
       }
 
-      // Enumerate available video input devices
+      // Enumerate available video input devices safely
       try {
         const devices = await Html5Qrcode.getCameras();
-        if (devices && devices.length > 0) {
+        if (devices && devices.length > 0 && isMountedRef.current) {
           setCameraDevices(devices);
         }
       } catch {}
+
+      if (sessionId !== activeSessionIdRef.current || !isMountedRef.current) {
+        isStartingRef.current = false;
+        return;
+      }
 
       const html5QrCode = new Html5Qrcode("ticketwave-qr-reader");
       scannerRef.current = html5QrCode;
@@ -259,16 +324,34 @@ export default function OfficerScanPage() {
       await html5QrCode.start(
         cameraConfig,
         config,
-        (decodedText) => handleQrDetected(decodedText),
+        async (decodedText) => {
+      if (processingRef.current || resultHeldRef.current) return;
+          if (handleQrDetectedRef.current) {
+            handleQrDetectedRef.current(decodedText);
+          }
+        },
         () => {
           // Normal frame miss while seeking QR
         }
       );
 
+      // Check if session changed while start was awaiting
+      if (sessionId !== activeSessionIdRef.current || !isMountedRef.current) {
+        try {
+          if (html5QrCode.isScanning) await html5QrCode.stop();
+        } catch {}
+        try {
+          html5QrCode.clear();
+        } catch {}
+        stopAllMediaTracks();
+        return;
+      }
+
       setCameraActive(true);
       setCameraLoading(false);
       setIsPaused(false);
       setPermissionState("granted");
+      setCameraError(null);
 
       // Check torch capabilities
       try {
@@ -278,78 +361,137 @@ export default function OfficerScanPage() {
         }
       } catch {}
     } catch (err) {
-      console.error("Camera startup error:", err);
+      console.warn("Camera startup error caught:", err);
+
+      // Clean up instance and tracks immediately on startup error
+      if (scannerRef.current) {
+        try {
+          if (scannerRef.current.isScanning) {
+            await scannerRef.current.stop();
+          }
+        } catch {}
+        try {
+          scannerRef.current.clear();
+        } catch {}
+        scannerRef.current = null;
+      }
+      stopAllMediaTracks();
+
+      if (!isMountedRef.current || sessionId !== activeSessionIdRef.current) {
+        return;
+      }
+
       setCameraActive(false);
       setCameraLoading(false);
 
       const errName = err?.name || "";
       const errMsg = String(err?.message || err || "");
+      const lowerMsg = (errName + " " + errMsg).toLowerCase();
 
       if (
         errName === "NotAllowedError" ||
         errName === "PermissionDeniedError" ||
-        errMsg.toLowerCase().includes("permission") ||
-        errMsg.toLowerCase().includes("not allowed")
+        lowerMsg.includes("notallowederror") ||
+        lowerMsg.includes("permission denied") ||
+        lowerMsg.includes("permission_denied") ||
+        lowerMsg.includes("permission")
       ) {
         setPermissionState("denied");
         setCameraError({
           type: "denied",
-          title: "Izin Akses Kamera Ditolak",
+          title: "Izin Akses Kamera Ditolak (NotAllowedError)",
           message:
-            "Browser menolak akses ke sensor kamera. Anda perlu memberikan izin kamera agar pemindai dapat aktif.",
+            "Akses kamera diblokir oleh browser atau sistem operasi. Scanner memerlukan izin kamera untuk memindai QR code tiket secara langsung.",
           instruction:
-            "Klik ikon gembok / perizinan di sebelah URL http://localhost:3000 pada address bar browser Anda, pilih 'Izinkan Kamera' (Allow), lalu klik tombol 'Coba Akses Kamera Lagi' di bawah.",
+            "Petunjuk Mengaktifkan Kamera:\n1. Klik ikon Gembok / Perizinan Situs di sebelah kiri URL http://localhost:3000 pada address bar browser.\n2. Ubah izin 'Kamera' (Camera) menjadi 'Izinkan' (Allow).\n3. Pastikan pengaturan privasi kamera sistem operasi (Windows Settings > Privacy > Camera) mengizinkan browser mengakses kamera.\n4. Klik tombol 'Coba Akses Kamera Lagi' di bawah ini.",
         });
       } else if (
         errName === "NotFoundError" ||
-        errName === "DevicesNotFoundError"
+        errName === "DevicesNotFoundError" ||
+        lowerMsg.includes("notfounderror") ||
+        lowerMsg.includes("devicesnotfounderror") ||
+        lowerMsg.includes("no camera") ||
+        lowerMsg.includes("requested device not found")
       ) {
         setCameraError({
           type: "not_found",
-          title: "Kamera Tidak Terdeteksi",
+          title: "Kamera Tidak Ditemukan (NotFoundError)",
           message:
-            "Tidak ditemukan modul kamera fisik atau webcam aktif pada perangkat ini.",
+            "Tidak ditemukan modul kamera fisik atau webcam aktif yang terhubung pada perangkat ini.",
           instruction:
-            "Pastikan webcam terhubung dengan benar atau gunakan formulir input manual kode tiket di bawah.",
+            "Pastikan webcam eksternal terhubung dengan baik atau driver webcam bawaan aktif, atau gunakan formulir 'Input Kode Manual' di bawah untuk memproses tiket.",
         });
       } else if (
         errName === "NotReadableError" ||
-        errName === "TrackStartError"
+        errName === "TrackStartError" ||
+        lowerMsg.includes("notreadableerror") ||
+        lowerMsg.includes("trackstarterror") ||
+        lowerMsg.includes("could not start video source") ||
+        lowerMsg.includes("already in use")
       ) {
         setCameraError({
           type: "in_use",
-          title: "Kamera Sedang Digunakan Aplikasi Lain",
+          title: "Kamera Sedang Digunakan Aplikasi Lain (NotReadableError)",
           message:
-            "Sensor kamera sedang terkunci oleh aplikasi lain (seperti Zoom, Google Meet, OBS, atau tab browser lain).",
+            "Sensor kamera tidak dapat diakses karena sedang terkunci atau digunakan secara eksklusif oleh aplikasi lain (seperti Zoom, Microsoft Teams, Google Meet, OBS Studio, atau tab browser lain).",
           instruction:
-            "Tutup aplikasi lain yang sedang mengakses kamera, lalu klik tombol 'Coba Akses Kamera Lagi' di bawah.",
+            "Petunjuk Mengatasi:\n1. Tutup aplikasi yang mungkin mengakses webcam (Zoom, Microsoft Teams, Google Meet, OBS Studio, WhatsApp).\n2. Tutup tab browser lain yang sedang membuka kamera.\n3. Klik tombol 'Coba Akses Kamera Lagi' di bawah ini.",
+        });
+      } else if (
+        errName === "OverconstrainedError" ||
+        errName === "ConstraintNotSatisfiedError" ||
+        lowerMsg.includes("overconstrainederror") ||
+        lowerMsg.includes("constraint")
+      ) {
+        setCameraError({
+          type: "overconstrained",
+          title: "Konfigurasi Kamera Tidak Didukung (OverconstrainedError)",
+          message:
+            "Pengaturan kamera yang diminta (misalnya orientasi kamera belakang atau device ID tertentu) tidak dapat dipenuhi oleh perangkat ini.",
+          instruction:
+            "Coba beralih ke kamera depan/user menggunakan tombol di bawah, atau klik 'Reset Pilihan Kamera' lalu coba kembali.",
         });
       } else {
         setCameraError({
           type: "generic",
-          title: "Gagal Membuka Kamera",
+          title: "Gagal Menginisialisasi Kamera",
           message: errMsg || "Terjadi kendala teknis saat menginisialisasi kamera.",
           instruction:
-            "Muat ulang halaman atau coba pilih kamera alternatif melalui opsi kamera di bawah.",
+            "Muat ulang halaman browser atau gunakan formulir 'Input Kode Manual' di bawah.",
         });
       }
     } finally {
       isStartingRef.current = false;
     }
-  }, [facingMode, selectedCameraId, handleQrDetected, stopScanner]);
+  }, [facingMode, selectedCameraId, stopAllMediaTracks]);
+
+  // Retry camera scanner after permission or hardware issue resolved
+  const handleRetryScanner = useCallback(() => {
+    setCameraError(null);
+    setIsScanning(true);
+    startScanner();
+  }, [startScanner]);
+
+  // Fallback to front/user camera if overconstrained error
+  const handleFallbackCamera = () => {
+    setSelectedCameraId(null);
+    setFacingMode("user");
+    setCameraError(null);
+    setIsScanning(true);
+  };
 
   // Lifecycle: start scanner when mounting or when facingMode/camera changes
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
-    if (isScanning) {
-      startScanner();
-    } else {
-      stopScanner();
-    }
+    const timer = setTimeout(() => {
+      if (isScanning) startScanner();
+      else stopScanner();
+    }, 0);
 
     return () => {
-      isMounted = false;
+      clearTimeout(timer);
+      isMountedRef.current = false;
       stopScanner();
     };
   }, [isScanning, facingMode, selectedCameraId, startScanner, stopScanner]);
@@ -413,9 +555,9 @@ export default function OfficerScanPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-            Mode Simulasi Gate (Backend Endpoint Belum Tersedia)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {cameraActive ? "Kamera aktif" : cameraLoading ? "Memuat kamera..." : "Kamera belum aktif"}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-blue-50 px-3 py-1 text-xs font-medium text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
             <MapPin size={13} />
@@ -423,7 +565,7 @@ export default function OfficerScanPage() {
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
             <Clock size={13} />
-            {shiftText.split(" ")[0]}
+            {shiftText}
           </span>
         </div>
       </div>
@@ -435,7 +577,7 @@ export default function OfficerScanPage() {
           {/* Main Viewfinder Card */}
           <div className="w-full overflow-hidden rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-xs">
             {/* Viewport Frame */}
-            <div className="relative aspect-[16/9] w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+            <div className="relative aspect-[16/9] w-full bg-slate-950 overflow-hidden">
               {/* HTML5 QR Code DOM Target Element */}
               <div
                 id="ticketwave-qr-reader"
@@ -457,31 +599,37 @@ export default function OfficerScanPage() {
                 </div>
               )}
 
-              {/* Fallback View: Error or Inactive */}
+              {/* Fallback View: Error or Inactive (Standby with Lock Icon) */}
               {!cameraActive && !cameraLoading && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950 p-6 text-center text-white">
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/95 p-6 text-center text-white backdrop-blur-xs">
                   <div
                     className={`flex h-14 w-14 items-center justify-center rounded-2xl mb-3.5 shadow-inner ${
-                      cameraError
+                      cameraError && cameraError.type !== "denied"
                         ? "bg-red-950/60 text-red-400 border border-red-900/50"
-                        : "bg-slate-800/80 text-slate-300"
+                        : "bg-slate-800 text-slate-200 border border-slate-700/60"
                     }`}
                   >
-                    {cameraError ? <Camera size={26} /> : <VideoOff size={26} />}
+                    {cameraError && cameraError.type !== "denied" ? (
+                      <Camera size={26} />
+                    ) : (
+                      <Lock size={26} className="text-slate-300" />
+                    )}
                   </div>
 
                   <p className="text-sm font-semibold text-slate-200">
-                    {cameraError ? cameraError.title : "Kamera Dinonaktifkan"}
+                    {cameraError ? cameraError.title : "Kamera Dinonaktifkan (Standby)"}
                   </p>
 
                   <p className="mt-1.5 text-xs text-slate-300 max-w-md leading-relaxed font-normal">
-                    {cameraError ? cameraError.message : "Pemindai sedang dijeda oleh petugas."}
+                    {cameraError
+                      ? cameraError.message
+                      : "Sensor kamera sedang dalam status nonaktif. Klik tombol di bawah untuk mengaktifkan pemindai tiket."}
                   </p>
 
                   {cameraError?.instruction && (
-                    <div className="mt-3.5 max-w-md rounded-lg border border-slate-800 bg-slate-900/90 p-3 text-left text-[11px] text-slate-300 leading-relaxed">
-                      <span className="font-semibold text-slate-200 block mb-0.5 flex items-center gap-1">
-                        <Info size={13} className="text-[#0080f2]" /> Petunjuk Mengaktifkan:
+                    <div className="mt-3.5 max-w-md rounded-lg border border-slate-800 bg-slate-900/90 p-3 text-left text-[11px] text-slate-300 leading-relaxed whitespace-pre-line">
+                      <span className="font-semibold text-slate-200 block mb-1.5 flex items-center gap-1.5">
+                        <Info size={14} className="text-[#0080f2] shrink-0" /> Petunjuk Mengaktifkan:
                       </span>
                       {cameraError.instruction}
                     </div>
@@ -490,15 +638,25 @@ export default function OfficerScanPage() {
                   <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsScanning(true);
-                        startScanner();
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#0080f2] px-4 py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
+                      onClick={handleRetryScanner}
+                      disabled={cameraLoading}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#0080f2] px-4 py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs disabled:opacity-50"
                     >
-                      <RotateCcw size={14} />
-                      <span>Coba Akses Kamera Lagi</span>
+                      <RotateCcw size={14} className={cameraLoading ? "animate-spin" : ""} />
+                      <span>{cameraLoading ? "Menghubungkan..." : "Coba Akses Kamera Lagi"}</span>
                     </button>
+
+                    {cameraError?.type === "overconstrained" && (
+                      <button
+                        type="button"
+                        onClick={handleFallbackCamera}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 transition"
+                      >
+                        <Camera size={14} />
+                        <span>Gunakan Kamera Depan</span>
+                      </button>
+                    )}
+
                     <a
                       href="#manual"
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 transition"
@@ -512,36 +670,38 @@ export default function OfficerScanPage() {
 
               {/* Viewfinder Overlay Box (Active only when camera is streaming) */}
               {cameraActive && !cameraError && (
-                <div className="relative z-20 flex h-48 w-48 sm:h-60 sm:w-60 md:h-64 md:w-64 items-center justify-center pointer-events-none">
-                  {/* Viewfinder Corners */}
-                  <div className="absolute left-0 top-0 h-6 w-6 border-l-2 border-t-2 border-[#0080f2] rounded-tl-sm shadow-[0_0_8px_#0080f2]" />
-                  <div className="absolute right-0 top-0 h-6 w-6 border-r-2 border-t-2 border-[#0080f2] rounded-tr-sm shadow-[0_0_8px_#0080f2]" />
-                  <div className="absolute bottom-0 left-0 h-6 w-6 border-l-2 border-b-2 border-[#0080f2] rounded-bl-sm shadow-[0_0_8px_#0080f2]" />
-                  <div className="absolute right-0 bottom-0 h-6 w-6 border-r-2 border-b-2 border-[#0080f2] rounded-br-sm shadow-[0_0_8px_#0080f2]" />
+                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                  <div className="relative flex h-48 w-48 sm:h-60 sm:w-60 md:h-64 md:w-64 items-center justify-center">
+                    {/* Viewfinder Corners */}
+                    <div className="absolute left-0 top-0 h-6 w-6 border-l-2 border-t-2 border-[#0080f2] rounded-tl-sm shadow-[0_0_8px_#0080f2]" />
+                    <div className="absolute right-0 top-0 h-6 w-6 border-r-2 border-t-2 border-[#0080f2] rounded-tr-sm shadow-[0_0_8px_#0080f2]" />
+                    <div className="absolute bottom-0 left-0 h-6 w-6 border-l-2 border-b-2 border-[#0080f2] rounded-bl-sm shadow-[0_0_8px_#0080f2]" />
+                    <div className="absolute right-0 bottom-0 h-6 w-6 border-r-2 border-b-2 border-[#0080f2] rounded-br-sm shadow-[0_0_8px_#0080f2]" />
 
-                  {/* Animated Laser Line */}
-                  {!isPaused && (
-                    <div className="absolute left-2 right-2 h-0.5 bg-[#0080f2] shadow-[0_0_10px_#0080f2] top-1/2 -translate-y-1/2 opacity-90 animate-pulse" />
-                  )}
-
-                  {/* Status Pill Overlay */}
-                  <div className="absolute -bottom-9 rounded-full bg-slate-900/90 px-3.5 py-1 text-[11px] font-medium text-slate-200 border border-slate-700/60 backdrop-blur-xs shadow-xs flex items-center gap-1.5">
-                    {isProcessing ? (
-                      <>
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-ping" />
-                        <span>Mendecode QR Code...</span>
-                      </>
-                    ) : isPaused ? (
-                      <>
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                        <span>Pemindaian Dijeda</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>Live Scanner Aktif — Arahkan ke QR</span>
-                      </>
+                    {/* Animated Laser Line */}
+                    {!isPaused && (
+                      <div className="absolute left-2 right-2 h-0.5 bg-[#0080f2] shadow-[0_0_10px_#0080f2] top-1/2 -translate-y-1/2 opacity-90 animate-pulse" />
                     )}
+
+                    {/* Status Pill Overlay */}
+                    <div className="absolute -bottom-9 rounded-full bg-slate-900/90 px-3.5 py-1 text-[11px] font-medium text-slate-200 border border-slate-700/60 backdrop-blur-xs shadow-xs flex items-center gap-1.5 whitespace-nowrap">
+                      {isProcessing ? (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-ping" />
+                          <span>Mendecode QR Code...</span>
+                        </>
+                      ) : isPaused ? (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          <span>Pemindaian Dijeda</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Live Scanner Aktif — Arahkan ke QR</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -566,14 +726,12 @@ export default function OfficerScanPage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsScanning(true);
-                      startScanner();
-                    }}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#0080f2] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
+                    onClick={handleRetryScanner}
+                    disabled={cameraLoading}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#0080f2] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs disabled:opacity-50"
                   >
                     <Camera size={14} />
-                    <span>Aktifkan Kamera</span>
+                    <span>{cameraLoading ? "Menghubungkan..." : "Aktifkan Kamera"}</span>
                   </button>
                 )}
 
@@ -688,9 +846,11 @@ export default function OfficerScanPage() {
               <input
                 type="text"
                 value={manualCode}
-                onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-                placeholder="Masukkan kode tiket (cth: TWV-JKT-001889 atau TW-SF26-VIP-001)"
-                className="flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-mono uppercase text-slate-900 placeholder:normal-case placeholder:font-sans placeholder:text-slate-400 focus:border-[#0080f2] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-[#0080f2] dark:focus:ring-[#0080f2] dark:focus:bg-slate-900"
+                onChange={(e) => setManualCode(e.target.value)}
+                placeholder="Masukkan kode tiket atau QR token"
+                autoCapitalize="none"
+                autoCorrect="off"
+                className="flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-mono text-slate-900 placeholder:normal-case placeholder:font-sans placeholder:text-slate-400 focus:border-[#0080f2] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-[#0080f2] dark:focus:ring-[#0080f2] dark:focus:bg-slate-900"
               />
 
               <button
@@ -702,25 +862,6 @@ export default function OfficerScanPage() {
               </button>
             </form>
 
-            {/* Contoh Kode Cepat */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="text-slate-400 font-normal">Contoh Format Tiket:</span>
-              {[
-                "TWV-JKT-001889",
-                "TW-SF26-VIP-099",
-                "TW-CANCEL-007",
-                "TW-SF26-REG-042",
-              ].map((sample) => (
-                <button
-                  key={sample}
-                  type="button"
-                  onClick={() => setManualCode(sample)}
-                  className="rounded-md border border-slate-200/80 bg-slate-50 px-2.5 py-1 font-mono text-[11px] font-normal text-slate-600 hover:border-[#0080f2] hover:text-[#0080f2] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-[#0080f2] dark:hover:text-[#0080f2] transition"
-                >
-                  {sample}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -742,7 +883,7 @@ export default function OfficerScanPage() {
               )}
             </div>
 
-            {scannedResult ? (
+            {isProcessing ? (<p role="status" className="text-sm text-slate-500">Memeriksa tiket ke server...</p>) : scannedResult ? (
               <div className="space-y-3 pt-1">
                 {/* Raw QR Text Display */}
                 <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-800/40 space-y-1.5">
@@ -759,22 +900,22 @@ export default function OfficerScanPage() {
                   </p>
                 </div>
 
-                {/* Backend Blocker Alert Notice */}
-                <div className="rounded-lg border border-amber-200/80 bg-amber-50/70 p-3.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300 leading-relaxed space-y-1">
+                {/* Backend Online Alert Notice */}
+                <div className="rounded-lg border border-slate-200 p-3.5 text-xs text-slate-700 dark:border-slate-800 dark:text-slate-300 leading-relaxed space-y-1">
                   <div className="flex items-center gap-1.5 font-semibold">
-                    <AlertTriangle size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span>Status Integrasi Backend: Belum Tersedia</span>
+                    <CheckCircle2 size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>{scannedResult.status}</span>
                   </div>
                   <p className="text-[11px] font-normal">
-                    Kamera berhasil mendecode QR secara nyata. Namun, backend <code>TicketWave-BE</code> saat ini belum mengimplementasikan endpoint check-in tiket (<code>POST /api/scan</code>). Tiket ini belum tercatat masuk di database server.
+                    {scannedResult.message}
                   </p>
                 </div>
 
-                {/* Parsed Local Ticket Data (if format matches) */}
+                {/* Ticket details returned by validation */}
                 {scannedResult.ticket && (
                   <div className="rounded-lg border border-slate-100 bg-white p-3.5 text-xs dark:border-slate-800 dark:bg-slate-800/20 space-y-2">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1.5 dark:border-slate-800/60">
-                      Rincian Identitas Tiket (Format Lokal)
+                      Rincian Tiket dari Server
                     </span>
                     <div className="flex justify-between py-0.5">
                       <span className="text-slate-400">Pemegang:</span>
@@ -808,7 +949,7 @@ export default function OfficerScanPage() {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => setScannedResult(null)}
+                    onClick={() => { validationRequestRef.current++; resultHeldRef.current = false; setScannedResult(null); lastScannedRef.current = { code: "", timestamp: 0 }; }}
                     className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition"
                   >
                     <span>Bersihkan &amp; Siap Scan Berikutnya</span>
@@ -892,7 +1033,7 @@ export default function OfficerScanPage() {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-[#0080f2] dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/50">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#0080f2]" />
-                Siap Melayani
+                Penugasan belum terverifikasi
               </span>
             </div>
 
@@ -912,13 +1053,13 @@ export default function OfficerScanPage() {
               <div className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800/60">
                 <span className="text-slate-400">Koordinator Lapangan:</span>
                 <span className="font-medium text-slate-900 dark:text-white">
-                  Dani Prasetyo (HT Ch 03)
+                  Belum dapat diverifikasi
                 </span>
               </div>
               <div className="flex justify-between items-center py-1">
                 <span className="text-slate-400">Progres Pengunjung:</span>
                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                  139 / 500 Masuk <span className="text-[11px] text-slate-400 font-normal">(28%)</span>
+                  Belum dapat diverifikasi
                 </span>
               </div>
             </div>
@@ -928,7 +1069,7 @@ export default function OfficerScanPage() {
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                 <div
                   className="h-full bg-[#0080f2] transition-all duration-300"
-                  style={{ width: "28%" }}
+                  style={{ width: "0%" }}
                 />
               </div>
             </div>
@@ -950,7 +1091,7 @@ export default function OfficerScanPage() {
               </p>
               <p className="flex items-start gap-2">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 shrink-0">3</span>
-                <span>Bila tiket valid secara format, pasangkan gelang wristband resmi sebelum penonton dipersilakan masuk.</span>
+                <span>Buka hasil validasi, konfirmasi check-in, dan tunggu status CHECK-IN SELESAI dari server sebelum memasang gelang atau mempersilakan masuk. Bunyi beep hanya menandakan QR terbaca.</span>
               </p>
             </div>
           </div>

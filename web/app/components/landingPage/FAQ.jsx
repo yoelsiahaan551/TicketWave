@@ -12,17 +12,17 @@ const faqData = [
   {
     question: "Apakah tiket dapat direfund?",
     answer:
-      "Setiap event memiliki kebijakan refund yang berbeda. Informasi refund dapat dilihat pada halaman detail event.",
+      "Pengajuan refund belum tersedia melalui situs ini. Jangan menganggap tiket dapat dikembalikan tanpa konfirmasi penyelenggara.",
   },
   {
     question: "Metode pembayaran apa saja yang tersedia?",
     answer:
-      "Kami mendukung QRIS, Virtual Account, Transfer Bank, E-Wallet, serta Kartu Kredit.",
+      "Periksa pilihan yang tersedia pada halaman checkout sebelum melanjutkan pemesanan.",
   },
   {
     question: "Bagaimana jika saya kehilangan e-ticket?",
     answer:
-      "Anda dapat membuka kembali menu My Ticket atau menghubungi Customer Support untuk mendapatkan tiket kembali.",
+      "Anda dapat membuka kembali menu Tiket Saya untuk melihat tiket pada akun Anda.",
   },
 ];
 

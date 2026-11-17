@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Save, AlertCircle, CheckCircle2, Upload } from "lucide-react";
 import api from "@/app/lib/api";
+import { uploadPendingMedia } from "@/app/lib/adminForms";
 
 export default function EditEventPage() {
   const params = useParams();
@@ -28,6 +30,7 @@ export default function EditEventPage() {
   const [bannerPreview, setBannerPreview] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -41,6 +44,7 @@ export default function EditEventPage() {
         if (ignore) return;
         const ev = res.data;
         if (ev) {
+          setLoaded(true);
           setEventType(ev.event_type || "single");
           setName(ev.name || "");
           setArtistName(ev.artist_name || "");
@@ -70,6 +74,7 @@ export default function EditEventPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!loaded || submitting) return;
     setSubmitting(true);
     setError(null);
     setSuccessMsg(null);
@@ -92,23 +97,13 @@ export default function EditEventPage() {
 
     try {
       await api.put(`/events/${id}`, payload);
-      if (posterFile) {
-        try {
-          const fd = new FormData();
-          fd.append("poster", posterFile);
-          await api.upload(`/events/${id}/poster`, fd);
-        } catch (uploadErr) {
-          console.warn("Poster upload warning (Cloudinary backend):", uploadErr);
-        }
-      }
-      if (bannerFile) {
-        try {
-          const fd = new FormData();
-          fd.append("banner", bannerFile);
-          await api.upload(`/events/${id}/banner`, fd);
-        } catch (uploadErr) {
-          console.warn("Banner upload warning (Cloudinary backend):", uploadErr);
-        }
+      const failures = await uploadPendingMedia(api, `/events/${id}`, [
+        { field: "poster", file: posterFile, onSaved: () => setPosterFile(null) },
+        { field: "banner", file: bannerFile, onSaved: () => setBannerFile(null) },
+      ]);
+      if (failures.length) {
+        setError(`Data event sudah disimpan, tetapi unggahan gagal. ${failures.join(" ")}`);
+        return;
       }
       setSuccessMsg("Data event berhasil diperbarui!");
       setTimeout(() => router.push(`/admin/event/${id}`), 800);
@@ -133,6 +128,9 @@ export default function EditEventPage() {
 
   return (
     <div className="w-full space-y-6">
+      <p className="rounded-xl border border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        Kategori tiket dan lineup festival hanya dapat ditentukan saat membuat event. Halaman ini mengubah informasi event dan media; fase harga dikelola melalui detail event.
+      </p>
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <Link
@@ -327,7 +325,7 @@ export default function EditEventPage() {
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !loaded}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0080f2] px-4 py-2.5 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4] disabled:opacity-50"
                 >
                   <Save size={15} />
@@ -349,7 +347,10 @@ export default function EditEventPage() {
               </label>
               <label className="flex h-52 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {posterPreview ? (
-                  <img
+                  <Image
+                    width={640}
+                    height={480}
+                    unoptimized
                     src={posterPreview}
                     alt="Poster"
                     className="h-full w-full object-cover"
@@ -387,7 +388,10 @@ export default function EditEventPage() {
               </label>
               <label className="flex h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500">
                 {bannerPreview ? (
-                  <img
+                  <Image
+                    width={640}
+                    height={360}
+                    unoptimized
                     src={bannerPreview}
                     alt="Banner"
                     className="h-full w-full object-cover"

@@ -7,6 +7,7 @@ import {
   getCustomApiBaseUrl,
   getStoredAccessToken,
   getStoredRefreshToken,
+  isWebSessionStorageActive,
   setCustomApiBaseUrl,
   setStoredAccessToken,
 } from '../utils/storage';
@@ -138,9 +139,38 @@ export function isInvalidTokenError(error: any): boolean {
 class MobileApiClient {
   private baseURL: string;
   private initialized: boolean = false;
+  private sessionVersion: number = 0;
+  private sessionClearedListeners = new Set<() => void>();
+  private activeRefresh: { key: string; promise: Promise<boolean> } | null = null;
 
   constructor() {
     this.baseURL = getDefaultApiBaseUrl();
+  }
+
+  getSessionVersion(): number {
+    return this.sessionVersion;
+  }
+
+  bumpSessionVersion(): number {
+    this.sessionVersion += 1;
+    return this.sessionVersion;
+  }
+
+  subscribeSessionCleared(listener: () => void): () => void {
+    this.sessionClearedListeners.add(listener);
+    return () => {
+      this.sessionClearedListeners.delete(listener);
+    };
+  }
+
+  private async clearSessionAndNotify(): Promise<void> {
+    this.sessionVersion += 1;
+    await clearAuthStorage();
+    this.sessionClearedListeners.forEach((cb) => {
+      try {
+        cb();
+      } catch {}
+    });
   }
 
   async init(): Promise<string> {
@@ -176,6 +206,7 @@ class MobileApiClient {
     options: RequestInit & { silent?: boolean } = {}
   ): Promise<ApiResponse<T>> {
     await this.init();
+    const requestSessionVersion = this.sessionVersion;
     const url = `${this.baseURL}${endpoint}`;
     const token = await getStoredAccessToken();
     const { silent = false, ...fetchOptions } = options;
@@ -204,12 +235,15 @@ class MobileApiClient {
       const isAuthError =
         (response.status === 401 ||
           (response.status === 422 && isInvalidTokenError({ data, raw: rawData }))) &&
-        !isAuthPublicEndpoint;
+        !isAuthPublicEndpoint &&
+        requestSessionVersion === this.sessionVersion;
 
       if (isAuthError) {
-        console.log(`[API Interceptor] Auth error ${response.status} on ${endpoint} (${formatErrorMessage(data, response.status)}). Attempting token refresh...`);
+        if (__DEV__ && !silent) {
+          console.log(`[API Interceptor] Auth error ${response.status} on ${endpoint} (${formatErrorMessage(data, response.status)}). Attempting token refresh...`);
+        }
         const refreshed = await this.refreshToken({ silent });
-        if (refreshed) {
+        if (refreshed && requestSessionVersion === this.sessionVersion) {
           const newToken = await getStoredAccessToken();
           const retryResponse = await fetch(url, {
             ...fetchOptions,
@@ -219,11 +253,13 @@ class MobileApiClient {
             },
           });
           const retryRaw = await retryResponse.json().catch(() => ({}));
-          console.log(`[API Interceptor] Retry ${endpoint} completed with HTTP ${retryResponse.status}`);
+          if (__DEV__ && !silent) {
+            console.log(`[API Interceptor] Retry ${endpoint} completed with HTTP ${retryResponse.status}`);
+          }
           const retryData = normalizeResponse(retryRaw);
           if (!retryResponse.ok && !retryData.success) {
-            if (retryResponse.status === 401) {
-              await clearAuthStorage();
+            if (retryResponse.status === 401 && requestSessionVersion === this.sessionVersion) {
+              await this.clearSessionAndNotify();
             }
             throw new ApiError(
               formatErrorMessage(retryData, retryResponse.status),
@@ -233,10 +269,10 @@ class MobileApiClient {
             );
           }
           return retryData;
-        } else {
+        } else if (requestSessionVersion === this.sessionVersion) {
           const refresh = await getStoredRefreshToken();
           if (!refresh) {
-            await clearAuthStorage();
+            await this.clearSessionAndNotify();
           }
         }
       }
@@ -252,6 +288,13 @@ class MobileApiClient {
 
       return data;
     } catch (error: any) {
+      if (
+        error?.status === 422 &&
+        requestSessionVersion === this.sessionVersion &&
+        isInvalidTokenError(error)
+      ) {
+        await this.clearSessionAndNotify();
+      }
       if (__DEV__ && !silent) {
         console.warn('[API Error]', endpoint, this.baseURL, error?.message || error);
       }
@@ -266,12 +309,31 @@ class MobileApiClient {
   }
 
   async refreshToken(options: { silent?: boolean } = {}): Promise<boolean> {
+    const refreshToken = await getStoredRefreshToken();
+    const key = `${this.sessionVersion}:${refreshToken || ''}`;
+    if (this.activeRefresh?.key === key) {
+      return this.activeRefresh.promise;
+    }
+    const pending = { key, promise: this.performRefresh(options) };
+    this.activeRefresh = pending;
+    try {
+      return await pending.promise;
+    } finally {
+      if (this.activeRefresh === pending) {
+        this.activeRefresh = null;
+      }
+    }
+  }
+
+  private async performRefresh(options: { silent?: boolean } = {}): Promise<boolean> {
     const { silent = false } = options;
     const refreshToken = await getStoredRefreshToken();
     if (!refreshToken) return false;
 
+    const refreshSessionVersion = this.sessionVersion;
+    const isSessionScopedWeb = await isWebSessionStorageActive();
+
     try {
-      console.log(`[API Interceptor] POST ${this.baseURL}/auth/refresh with refresh token`);
       const response = await fetch(`${this.baseURL}/auth/refresh`, {
         method: 'POST',
         headers: {
@@ -279,6 +341,13 @@ class MobileApiClient {
           Authorization: `Bearer ${refreshToken}`,
         },
       });
+
+      if (
+        refreshSessionVersion !== this.sessionVersion ||
+        (await getStoredRefreshToken()) !== refreshToken
+      ) {
+        return false;
+      }
 
       if (!response.ok) {
         const rawErr = await response.json().catch(() => ({}));
@@ -294,7 +363,7 @@ class MobileApiClient {
               message: formatErrorMessage(errData, response.status),
             }))
         ) {
-          await clearAuthStorage();
+          await this.clearSessionAndNotify();
         }
         return false;
       }
@@ -302,7 +371,13 @@ class MobileApiClient {
       const rawData = await response.json();
       const data = normalizeResponse(rawData);
       if (data.success && data.data?.access_token) {
-        await setStoredAccessToken(data.data.access_token);
+        if (
+          refreshSessionVersion !== this.sessionVersion ||
+          (await getStoredRefreshToken()) !== refreshToken
+        ) {
+          return false;
+        }
+        await setStoredAccessToken(data.data.access_token, !isSessionScopedWeb);
         return true;
       }
       return false;
@@ -313,7 +388,9 @@ class MobileApiClient {
       if (error?.status >= 500 || !error?.status) {
         throw error;
       }
-      await clearAuthStorage();
+      if (refreshSessionVersion === this.sessionVersion) {
+        await this.clearSessionAndNotify();
+      }
       return false;
     }
   }
@@ -362,6 +439,7 @@ class MobileApiClient {
 
   async upload<T = any>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
     await this.init();
+    const requestSessionVersion = this.sessionVersion;
     const url = `${this.baseURL}${endpoint}`;
     const token = await getStoredAccessToken();
     const headers: Record<string, string> = {};
@@ -378,9 +456,9 @@ class MobileApiClient {
       const rawData = await response.json().catch(() => ({}));
       const data = normalizeResponse(rawData);
 
-      if (response.status === 401) {
+      if (response.status === 401 && requestSessionVersion === this.sessionVersion) {
         const refreshed = await this.refreshToken();
-        if (refreshed) {
+        if (refreshed && requestSessionVersion === this.sessionVersion) {
           const newToken = await getStoredAccessToken();
           const retryResponse = await fetch(url, {
             method: 'POST',
@@ -391,11 +469,10 @@ class MobileApiClient {
             body: formData,
           });
           const retryRaw = await retryResponse.json().catch(() => ({}));
-          console.log(`[API Interceptor] Retry ${endpoint} completed with HTTP ${retryResponse.status}`);
           const retryData = normalizeResponse(retryRaw);
           if (!retryResponse.ok && !retryData.success) {
-            if (retryResponse.status === 401) {
-              await clearAuthStorage();
+            if (retryResponse.status === 401 && requestSessionVersion === this.sessionVersion) {
+              await this.clearSessionAndNotify();
             }
             throw new ApiError(
               formatErrorMessage(retryData, retryResponse.status),
@@ -419,6 +496,13 @@ class MobileApiClient {
 
       return data;
     } catch (error: any) {
+      if (
+        error?.status === 422 &&
+        requestSessionVersion === this.sessionVersion &&
+        isInvalidTokenError(error)
+      ) {
+        await this.clearSessionAndNotify();
+      }
       if (error instanceof ApiError) throw error;
       throw new ApiError(error?.message || 'Upload failed', 0);
     }

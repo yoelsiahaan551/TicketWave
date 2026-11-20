@@ -1,7 +1,7 @@
 import React from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { ShieldAlert } from 'lucide-react-native';
+import { LogOut, ShieldAlert } from 'lucide-react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { Button } from '../../src/components/common/Button';
@@ -9,7 +9,7 @@ import { Typography } from '../../src/constants/Typography';
 
 export default function AdminLayout() {
   const router = useRouter();
-  const { user, isAuthenticated, isAdmin, loading } = useAuth();
+  const { user, isAuthenticated, isAdmin, isOfficer, loading, logout } = useAuth();
   const { colors, brand } = useAppTheme();
 
   if (loading) {
@@ -37,7 +37,7 @@ export default function AdminLayout() {
           </Text>
           <Button
             title="Ke Halaman Login"
-            onPress={() => router.push('/login')}
+            onPress={() => router.push({ pathname: '/login', params: { next: '/admin' } } as any)}
             size="md"
             variant="gradient"
             style={{ width: '100%', marginTop: 18 }}
@@ -68,11 +68,22 @@ export default function AdminLayout() {
             Akun Anda memiliki role {user.role?.toUpperCase() || 'USER'}. Fitur administrasi hanya diizinkan untuk akun role ADMIN.
           </Text>
           <Button
-            title="Kembali ke Area Pengguna"
-            onPress={() => router.replace('/(tabs)')}
+            title={isOfficer ? 'Buka Portal Petugas' : 'Kembali ke Area Pengguna'}
+            onPress={() => router.replace((isOfficer ? '/officer' : '/(tabs)') as any)}
             size="md"
             variant="primary"
             style={{ width: '100%', marginTop: 18 }}
+          />
+          <Button
+            title="Keluar & Ganti Akun"
+            onPress={async () => {
+              await logout();
+              router.replace({ pathname: '/login', params: { next: '/admin' } } as any);
+            }}
+            size="md"
+            variant="outline"
+            icon={<LogOut size={16} color={brand.danger} />}
+            style={{ width: '100%', marginTop: 10 }}
           />
         </View>
       </View>
@@ -89,11 +100,12 @@ export default function AdminLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="events" options={{ headerShown: false }} />
       <Stack.Screen name="event/create" options={{ headerShown: false }} />
-      <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="event/[id]/index" options={{ headerShown: false }} />
       <Stack.Screen name="event/[id]/edit" options={{ headerShown: false }} />
       <Stack.Screen name="event/[id]/phases" options={{ headerShown: false }} />
       <Stack.Screen name="agencies" options={{ headerShown: false }} />
       <Stack.Screen name="agency/create" options={{ headerShown: false }} />
+      <Stack.Screen name="agency/[id]/index" options={{ headerShown: false }} />
       <Stack.Screen name="agency/[id]/edit" options={{ headerShown: false }} />
       <Stack.Screen name="users" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />

@@ -64,6 +64,9 @@ function RootLayoutNav() {
         <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="checkout" options={{ headerShown: false }} />
         <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/finish" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/unfinish" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/error" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="favorites" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />

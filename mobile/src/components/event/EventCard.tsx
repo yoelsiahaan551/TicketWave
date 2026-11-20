@@ -14,7 +14,11 @@ import { BrandColors, PublicThemePalette } from '../../constants/Colors';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { EventItem } from '../../types';
-import { formatRupiah, formatTanggalSingkat } from '../../utils/formatters';
+import {
+  formatEventSchedule,
+  formatRupiah,
+  isEventPast,
+} from '../../utils/formatters';
 import { FALLBACK_EVENT_IMAGE } from '../../constants/Config';
 
 interface EventCardProps {
@@ -33,12 +37,9 @@ export function EventCard({ event, style, compact = false, forcePublicTheme = fa
 
   const isFav = isEventFavorite(event.id);
   const imageUri = event.poster_url || event.banner_url || FALLBACK_EVENT_IMAGE;
+  const past = isEventPast(event);
 
-  const dateText = event.event_date
-    ? formatTanggalSingkat(event.event_date)
-    : event.event_type === 'festival'
-    ? `Festival ${event.days_count || 1} Hari`
-    : 'Jadwal Segera';
+  const dateText = formatEventSchedule(event, { short: true, includeTime: false });
 
   const locationText = [event.venue, event.city].filter(Boolean).join(', ') || 'Lokasi Segera';
 
@@ -76,7 +77,11 @@ export function EventCard({ event, style, compact = false, forcePublicTheme = fa
             </Text>
           </View>
 
-          {event.status === 'on_sale' ? (
+          {past ? (
+            <View style={[styles.statusBadge, { backgroundColor: 'rgba(100, 116, 139, 0.92)' }]}>
+              <Text style={styles.onSaleText}>ACARA SELESAI</Text>
+            </View>
+          ) : event.status === 'on_sale' ? (
             <View style={styles.onSaleBadge}>
               <Text style={styles.onSaleText}>ON SALE</Text>
             </View>

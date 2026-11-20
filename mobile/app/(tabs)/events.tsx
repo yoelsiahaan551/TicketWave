@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ArrowUpDown, Check, ChevronDown, MapPin, Search, X } from 'lucide-react-native';
+import { ArrowUpDown, Calendar, Check, ChevronDown, MapPin, Search, X } from 'lucide-react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
@@ -18,6 +18,7 @@ import { EventItem } from '../../src/types';
 import { Header } from '../../src/components/common/Header';
 import { EventCard } from '../../src/components/event/EventCard';
 import { Input } from '../../src/components/common/Input';
+import { Button } from '../../src/components/common/Button';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { EventCardSkeleton } from '../../src/components/common/Skeleton';
 
@@ -30,21 +31,84 @@ const SORT_OPTIONS = [
 
 const CATEGORIES = ['Semua', 'Single', 'Festival'];
 
+function mapCategoryParam(category?: string, eventType?: string): string {
+  const raw = (eventType || category || '').trim().toLowerCase();
+  if (raw === 'festival') return 'Festival';
+  if (raw === 'single' || raw === 'konser musik' || raw === 'konser') return 'Single';
+  return 'Semua';
+}
+
 export default function EventsScreen() {
-  const localParams = useLocalSearchParams<{ search?: string; city?: string }>();
+  const localParams = useLocalSearchParams<{
+    search?: string;
+    city?: string;
+    category?: string;
+    event_type?: string;
+  }>();
   const { colors, brand, isDark } = useAppTheme();
 
-  const [search, setSearch] = useState(localParams.search || '');
-  const [selectedCategory, setSelectedCategory] = useState('Semua');
-  const [selectedCity, setSelectedCity] = useState(localParams.city || 'Semua');
+  const incomingKey = `${localParams.search ?? ''}|${localParams.city ?? ''}|${
+    localParams.category ?? ''
+  }|${localParams.event_type ?? ''}`;
+
+  const [filterOverrides, setFilterOverrides] = useState<{
+    key: string;
+    search?: string;
+    city?: string;
+    category?: string;
+  }>({ key: incomingKey });
+
+  const activeOverrides =
+    filterOverrides.key === incomingKey ? filterOverrides : { key: incomingKey };
+
+  const search = activeOverrides.search ?? (localParams.search || '');
+  const selectedCategory =
+    activeOverrides.category ?? mapCategoryParam(localParams.category, localParams.event_type);
+  const selectedCity = activeOverrides.city ?? (localParams.city || 'Semua');
+
+  const setSearch = useCallback(
+    (value: string) =>
+      setFilterOverrides((prev) => ({
+        ...(prev.key === incomingKey ? prev : { key: incomingKey }),
+        key: incomingKey,
+        search: value,
+      })),
+    [incomingKey]
+  );
+  const setSelectedCategory = useCallback(
+    (value: string) =>
+      setFilterOverrides((prev) => ({
+        ...(prev.key === incomingKey ? prev : { key: incomingKey }),
+        key: incomingKey,
+        category: value,
+      })),
+    [incomingKey]
+  );
+  const setSelectedCity = useCallback(
+    (value: string) =>
+      setFilterOverrides((prev) => ({
+        ...(prev.key === incomingKey ? prev : { key: incomingKey }),
+        key: incomingKey,
+        city: value,
+      })),
+    [incomingKey]
+  );
+
   const [selectedSort, setSelectedSort] = useState('terdekat');
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [cities, setCities] = useState<string[]>(['Semua']);
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [sortModalOpen, setSortModalOpen] = useState(false);
 
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,13 +127,15 @@ export default function EventsScreen() {
     (raw: EventItem[]) => {
       return [...raw].sort((a, b) => {
         if (selectedSort === 'terdekat') {
-          return new Date(a.event_date || 0).getTime() - new Date(b.event_date || 0).getTime();
+          const aTime = a.event_date ? new Date(a.event_date).getTime() : Number.MAX_SAFE_INTEGER;
+          const bTime = b.event_date ? new Date(b.event_date).getTime() : Number.MAX_SAFE_INTEGER;
+          return aTime - bTime;
         }
         if (selectedSort === 'termurah') {
-          return (a.price_from || 0) - (b.price_from || 0);
+          return (a.price_from ?? Number.MAX_SAFE_INTEGER) - (b.price_from ?? Number.MAX_SAFE_INTEGER);
         }
         if (selectedSort === 'termahal') {
-          return (b.price_from || 0) - (a.price_from || 0);
+          return (b.price_from ?? -1) - (a.price_from ?? -1);
         }
         if (selectedSort === 'nama') {
           return (a.name || '').localeCompare(b.name || '');
@@ -80,18 +146,30 @@ export default function EventsScreen() {
     [selectedSort]
   );
 
+  const buildParams = useCallback(
+    (targetPage: number) => {
+      const params: any = { page: targetPage, per_page: 20 };
+      if (search.trim()) params.search = search.trim();
+      if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
+      if (selectedCity !== 'Semua') params.city = selectedCity;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom.trim())) params.date_from = dateFrom.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateTo.trim())) params.date_to = dateTo.trim();
+      return params;
+    },
+    [search, selectedCategory, selectedCity, dateFrom, dateTo]
+  );
+
   useEffect(() => {
     let ignore = false;
-    const params: any = { per_page: 20 };
-    if (search.trim()) params.search = search.trim();
-    if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
-    if (selectedCity !== 'Semua') params.city = selectedCity;
 
-    fetchPublicEvents(params)
+    fetchPublicEvents(buildParams(1))
       .then((res) => {
         if (!ignore) {
           const items = res.data?.items || [];
           setEvents(sortItems(items));
+          setPage(res.data?.page || 1);
+          setTotalPages(res.data?.total_pages || 1);
+          setTotalItems(res.data?.total_items ?? items.length);
           setError(null);
         }
       })
@@ -110,19 +188,17 @@ export default function EventsScreen() {
     return () => {
       ignore = true;
     };
-  }, [search, selectedCategory, selectedCity, sortItems]);
+  }, [buildParams, sortItems]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    const params: any = { per_page: 20 };
-    if (search.trim()) params.search = search.trim();
-    if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
-    if (selectedCity !== 'Semua') params.city = selectedCity;
-
-    fetchPublicEvents(params)
+    fetchPublicEvents(buildParams(1))
       .then((res) => {
         const items = res.data?.items || [];
         setEvents(sortItems(items));
+        setPage(res.data?.page || 1);
+        setTotalPages(res.data?.total_pages || 1);
+        setTotalItems(res.data?.total_items ?? items.length);
         setError(null);
       })
       .catch((err: any) => {
@@ -133,11 +209,34 @@ export default function EventsScreen() {
       });
   };
 
+  const handleLoadMore = async () => {
+    if (loadingMore || page >= totalPages) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await fetchPublicEvents(buildParams(nextPage));
+      const newItems = res.data?.items || [];
+      setEvents((prev) => {
+        const merged = [...prev, ...newItems.filter((n) => !prev.some((p) => p.id === n.id))];
+        return sortItems(merged);
+      });
+      setPage(res.data?.page || nextPage);
+      setTotalPages(res.data?.total_pages || totalPages);
+      setTotalItems(res.data?.total_items ?? totalItems);
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat halaman berikutnya.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handleResetFilters = () => {
     setSearch('');
     setSelectedCategory('Semua');
     setSelectedCity('Semua');
     setSelectedSort('terdekat');
+    setDateFrom('');
+    setDateTo('');
   };
 
   return (
@@ -207,7 +306,48 @@ export default function EventsScreen() {
             </Text>
             <ChevronDown size={13} color={colors.textMuted} />
           </TouchableOpacity>
+
+          {/* Date Range Filter Toggle */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowDateFilter((v) => !v)}
+            style={[
+              styles.dateTogglePill,
+              {
+                backgroundColor:
+                  showDateFilter || dateFrom || dateTo
+                    ? isDark
+                      ? 'rgba(0,128,242,0.2)'
+                      : 'rgba(0,128,242,0.08)'
+                    : colors.surfaceElevated,
+                borderColor:
+                  showDateFilter || dateFrom || dateTo ? brand.primary : colors.border,
+              },
+            ]}
+          >
+            <Calendar
+              size={14}
+              color={showDateFilter || dateFrom || dateTo ? brand.primary : colors.textSecondary}
+            />
+          </TouchableOpacity>
         </View>
+
+        {showDateFilter && (
+          <View style={styles.dateRangeRow}>
+            <Input
+              placeholder="Dari (YYYY-MM-DD)"
+              value={dateFrom}
+              onChangeText={setDateFrom}
+              containerStyle={{ flex: 1, marginBottom: 0 }}
+            />
+            <Input
+              placeholder="Sampai (YYYY-MM-DD)"
+              value={dateTo}
+              onChangeText={setDateTo}
+              containerStyle={{ flex: 1, marginBottom: 0 }}
+            />
+          </View>
+        )}
 
         {/* Category Pills */}
         <ScrollView
@@ -245,16 +385,17 @@ export default function EventsScreen() {
       </View>
 
       {/* Results Header */}
-      {error && (
+      {Boolean(error) && (
         <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
           <Text style={{ color: '#EF4444', fontSize: 13 }}>{error}</Text>
         </View>
       )}
       <View style={styles.resultsInfoRow}>
         <Text style={[styles.resultsCount, { color: colors.textMuted }]}>
-          Menampilkan <Text style={{ color: colors.text, fontWeight: '800' }}>{events.length}</Text> event aktif
+          Menampilkan <Text style={{ color: colors.text, fontWeight: '800' }}>{events.length}</Text>
+          {totalItems > events.length ? ` dari ${totalItems}` : ''} event aktif
         </Text>
-        {(search || selectedCategory !== 'Semua' || selectedCity !== 'Semua') && (
+        {Boolean(search || selectedCategory !== 'Semua' || selectedCity !== 'Semua' || dateFrom || dateTo) && (
           <TouchableOpacity onPress={handleResetFilters}>
             <Text style={[styles.resetText, { color: brand.primary }]}>Reset Filter</Text>
           </TouchableOpacity>
@@ -289,6 +430,18 @@ export default function EventsScreen() {
               actionLabel="Reset Filter"
               onAction={handleResetFilters}
             />
+          }
+          ListFooterComponent={
+            page < totalPages ? (
+              <Button
+                title={loadingMore ? 'Memuat...' : `Muat Lebih Banyak (Hal ${page}/${totalPages})`}
+                onPress={handleLoadMore}
+                loading={loadingMore}
+                variant="outline"
+                size="md"
+                style={{ marginTop: 8, marginBottom: 16 }}
+              />
+            ) : undefined
           }
           renderItem={({ item }) => <EventCard event={item} />}
         />
@@ -437,6 +590,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     marginHorizontal: 6,
+  },
+  dateTogglePill: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  dateRangeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
   },
   categoryScroll: {
     gap: 8,

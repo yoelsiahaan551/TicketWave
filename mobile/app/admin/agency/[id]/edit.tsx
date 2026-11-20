@@ -41,6 +41,7 @@ export default function AdminEditAgencyScreen() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [newLogoUri, setNewLogoUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -77,6 +78,7 @@ export default function AdminEditAgencyScreen() {
   const handleSave = async () => {
     if (!id) return;
     setError(null);
+    setWarning(null);
     setSubmitting(true);
 
     try {
@@ -89,12 +91,27 @@ export default function AdminEditAgencyScreen() {
       });
 
       if (newLogoUri) {
-        await uploadAgencyLogo(id, newLogoUri);
+        try {
+          const uploadRes = await uploadAgencyLogo(id, newLogoUri);
+          if (uploadRes.data?.logo_url) setLogoUrl(uploadRes.data.logo_url);
+          setNewLogoUri(null);
+        } catch (uploadErr: any) {
+          const warnMsg = `Data agency tersimpan, namun unggah logo gagal karena layanan media backend (ISSUE-03): ${uploadErr?.message || 'HTTP 500'}.`;
+          setWarning(warnMsg);
+          if (Platform.OS !== 'web') {
+            Alert.alert('Data Tersimpan (Logo Gagal)', warnMsg);
+          }
+          return;
+        }
       }
 
-      Alert.alert('Tersimpan', 'Data agency berhasil diperbarui.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      if (Platform.OS === 'web') {
+        router.back();
+      } else {
+        Alert.alert('Tersimpan', 'Data agency berhasil diperbarui.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      }
     } catch (err: any) {
       setError(err?.message || 'Gagal memperbarui data agency.');
     } finally {
@@ -128,6 +145,11 @@ export default function AdminEditAgencyScreen() {
           {error && (
             <View style={[styles.errorBox, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
               <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>{error}</Text>
+            </View>
+          )}
+          {warning && (
+            <View style={[styles.errorBox, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
+              <Text style={[Typography.caption, { color: brand.warning, fontWeight: '700' }]}>{warning}</Text>
             </View>
           )}
 

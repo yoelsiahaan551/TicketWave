@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  MapPin,
   Search,
   ShieldCheck,
   Ticket,
@@ -20,6 +22,11 @@ import {
 
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { executeCheckIn, inspectTicketCodeAsync } from '../../src/api/endpoints';
+import {
+  formatTanggalSingkat,
+  formatWibDateTime,
+  getOfficerStatusBadgeVariant,
+} from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Button } from '../../src/components/common/Button';
 import { Badge } from '../../src/components/common/Badge';
@@ -30,22 +37,28 @@ export default function OfficerValidationScreen() {
   const { code: paramCode } = useLocalSearchParams<{ code?: string }>();
   const { colors, brand } = useAppTheme();
 
-  const [ticketCode, setTicketCode] = useState(paramCode || '');
+  const [codeOverride, setCodeOverride] = useState<{ param?: string; value: string } | null>(null);
+  const ticketCode =
+    codeOverride && codeOverride.param === paramCode ? codeOverride.value : paramCode || '';
+  const setTicketCode = (val: string) => setCodeOverride({ param: paramCode, value: val });
   const [isValidating, setIsValidating] = useState(false);
   const [isSubmittingCheckIn, setIsSubmittingCheckIn] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [checkedInSuccess, setCheckedInSuccess] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const checkInLockRef = useRef(false);
 
   const runValidation = async (codeToTest?: string) => {
-    const target = (codeToTest || ticketCode).trim().toUpperCase();
+    const target = (codeToTest ?? ticketCode).trim();
     if (!target) {
-      Alert.alert('Perhatian', 'Kode tiket atau token QR wajib diisi.');
+      setFeedbackError('Kode tiket atau token QR wajib diisi.');
       return;
     }
 
     setIsValidating(true);
     setResult(null);
     setCheckedInSuccess(false);
+    setFeedbackError(null);
 
     try {
       const res = await inspectTicketCodeAsync(target);
@@ -55,10 +68,8 @@ export default function OfficerValidationScreen() {
         success: false,
         status: 'GAGAL MEMERIKSA',
         code: target,
-        message:
-          err?.status === 404
-            ? 'Endpoint validasi belum didaftarkan di Flask backend (/api/scan/validate - BLOCKED-BY-BACKEND).'
-            : err?.message || 'Gagal menghubungi server.',
+        server_verified: false,
+        message: err?.message || 'Gagal menghubungi server.',
       });
     } finally {
       setIsValidating(false);
@@ -68,7 +79,7 @@ export default function OfficerValidationScreen() {
   useEffect(() => {
     if (!paramCode || !paramCode.trim()) return;
     let ignore = false;
-    const target = paramCode.trim().toUpperCase();
+    const target = paramCode.trim();
 
     inspectTicketCodeAsync(target)
       .then((res) => {
@@ -83,10 +94,8 @@ export default function OfficerValidationScreen() {
             success: false,
             status: 'GAGAL MEMERIKSA',
             code: target,
-            message:
-              err?.status === 404
-                ? 'Endpoint validasi belum didaftarkan di Flask backend (/api/scan/validate - BLOCKED-BY-BACKEND).'
-                : err?.message || 'Gagal menghubungi server.',
+            server_verified: false,
+            message: err?.message || 'Gagal menghubungi server.',
           });
           setIsValidating(false);
         }
@@ -98,8 +107,27 @@ export default function OfficerValidationScreen() {
   }, [paramCode]);
 
   const handleConfirmCheckIn = async () => {
-    if (!result?.ticket && !result?.code) return;
+    if ((!result?.ticket && !result?.code) || checkInLockRef.current || isSubmittingCheckIn) {
+      return;
+    }
+
+    const buyer = result.ticket?.buyer_name || result.ticket?.attendee_name || 'Pengunjung';
+    const codeLabel = result.ticket?.ticket_code || result.code || ticketCode.trim();
+
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Konfirmasi Check-In Pengunjung?\n• Kode: ${codeLabel}\n• Nama: ${buyer}`
+        )
+      ) {
+        return;
+      }
+    }
+
+    checkInLockRef.current = true;
     setIsSubmittingCheckIn(true);
+    setFeedbackError(null);
 
     try {
       const ticketParam = result.ticket || result.code;
@@ -108,35 +136,36 @@ export default function OfficerValidationScreen() {
         setCheckedInSuccess(true);
         setResult((prev: any) => ({
           ...prev,
+          success: true,
           status: 'CHECK-IN SELESAI',
+          server_verified: true,
           message: res.message || 'Check-in berhasil dikonfirmasi.',
-          ticket: { ...(prev?.ticket || {}), status: 'used' },
+          ticket: {
+            ...(prev?.ticket || {}),
+            ...(res.ticket || {}),
+            status: 'used',
+          },
         }));
       } else {
         setResult((prev: any) => ({
           ...prev,
           ...res,
         }));
-        Alert.alert('Gagal Check-In', res.message || 'Check-in ditolak sistem.');
+        setFeedbackError(res.message || 'Check-in ditolak sistem.');
+        if (Platform.OS !== 'web') {
+          Alert.alert('Gagal Check-In', res.message || 'Check-in ditolak sistem.');
+        }
       }
     } catch (err: any) {
-      Alert.alert(
-        'Gagal Check-In',
-        err?.status === 404
-          ? 'Endpoint check-in belum didaftarkan di Flask backend (/api/scan/check-in - BLOCKED-BY-BACKEND).'
-          : err?.message || 'Terjadi kesalahan sistem saat check-in.'
-      );
+      const msg = err?.message || 'Terjadi kesalahan sistem saat check-in.';
+      setFeedbackError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Gagal Check-In', msg);
+      }
     } finally {
+      checkInLockRef.current = false;
       setIsSubmittingCheckIn(false);
     }
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    const s = String(status || '').toUpperCase();
-    if (s.includes('VALID') || s.includes('SELESAI')) return 'success';
-    if (s.includes('SUDAH') || s.includes('USED')) return 'warning';
-    if (s.includes('DIBATALKAN') || s.includes('TIDAK') || s.includes('GAGAL')) return 'danger';
-    return 'neutral';
   };
 
   return (
@@ -159,12 +188,22 @@ export default function OfficerValidationScreen() {
           </Text>
 
           <Input
-            placeholder="TCK-XXXXXX atau token QR"
+            placeholder="TKT-XXXXXXXX atau token QR"
             value={ticketCode}
-            onChangeText={setTicketCode}
-            autoCapitalize="characters"
+            onChangeText={(txt) => {
+              setTicketCode(txt);
+              if (feedbackError) setFeedbackError(null);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
             leftIcon={<Ticket size={18} color={brand.primary} />}
           />
+
+          {feedbackError && (
+            <Text style={{ color: brand.danger, fontSize: 12, fontWeight: '700', marginTop: 8 }}>
+              {feedbackError}
+            </Text>
+          )}
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
             <Button
@@ -209,15 +248,15 @@ export default function OfficerValidationScreen() {
             ]}
           >
             <View style={styles.resultHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={[styles.resultCode, { color: colors.text }]}>
-                  {result.code || ticketCode}
+                  {result.ticket?.ticket_code || result.code || ticketCode}
                 </Text>
                 <Text style={[Typography.caption, { color: colors.textSecondary }]}>
                   Status Verifikasi Server
                 </Text>
               </View>
-              <Badge label={result.status} variant={getStatusBadgeVariant(result.status)} />
+              <Badge label={result.status} variant={getOfficerStatusBadgeVariant(result.status)} />
             </View>
 
             {result.message ? (
@@ -252,15 +291,25 @@ export default function OfficerValidationScreen() {
                   <User size={15} color={brand.primary} />
                   <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Nama Pembeli:</Text>
                   <Text style={[styles.metaValue, { color: colors.text }]}>
-                    {result.ticket.buyer_name || '-'}
+                    {result.ticket.buyer_name || result.ticket.attendee_name || '-'}
                   </Text>
                 </View>
+
+                {result.ticket.booking_code && (
+                  <View style={styles.metaRow}>
+                    <Ticket size={15} color={brand.primary} />
+                    <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Kode Booking:</Text>
+                    <Text style={[styles.metaValue, { color: colors.text }]}>
+                      {result.ticket.booking_code}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.metaRow}>
                   <Ticket size={15} color={brand.primary} />
                   <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Kategori:</Text>
                   <Text style={[styles.metaValue, { color: colors.text }]}>
-                    {result.ticket.ticket_type_name || '-'}
+                    {result.ticket.ticket_type_name || result.ticket.ticket_type || '-'}
                   </Text>
                 </View>
 
@@ -270,6 +319,17 @@ export default function OfficerValidationScreen() {
                     <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Event:</Text>
                     <Text style={[styles.metaValue, { color: colors.text }]}>
                       {result.ticket.event_name}
+                      {result.ticket.event_date ? ` (${formatTanggalSingkat(result.ticket.event_date)})` : ''}
+                    </Text>
+                  </View>
+                )}
+
+                {result.ticket.venue && (
+                  <View style={styles.metaRow}>
+                    <MapPin size={15} color={brand.primary} />
+                    <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Venue:</Text>
+                    <Text style={[styles.metaValue, { color: colors.text }]}>
+                      {result.ticket.venue}
                     </Text>
                   </View>
                 )}
@@ -279,7 +339,18 @@ export default function OfficerValidationScreen() {
                     <Clock size={15} color={brand.warning} />
                     <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Check-In Awal:</Text>
                     <Text style={[styles.metaValue, { color: brand.warning }]}>
-                      {result.first_checked_in_at}
+                      {formatWibDateTime(result.first_checked_in_at)}
+                      {result.first_checked_in_by ? ` (${result.first_checked_in_by})` : ''}
+                    </Text>
+                  </View>
+                )}
+
+                {result.ticket.checked_in_at && result.status === 'CHECK-IN SELESAI' && (
+                  <View style={styles.metaRow}>
+                    <Clock size={15} color={brand.success} />
+                    <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Waktu Check-In:</Text>
+                    <Text style={[styles.metaValue, { color: brand.success }]}>
+                      {formatWibDateTime(result.ticket.checked_in_at)}
                     </Text>
                   </View>
                 )}

@@ -14,6 +14,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  ShieldAlert,
   Sparkles,
   User,
 } from 'lucide-react-native';
@@ -23,7 +24,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { createCheckout } from '../src/api/endpoints';
 import { PaymentMethodId } from '../src/types';
 import { saveBookingEntry } from '../src/utils/storage';
-import { formatRupiah, formatTanggalSingkat } from '../src/utils/formatters';
+import { formatEventSchedule, formatRupiah } from '../src/utils/formatters';
 import {
   getOfficialPaymentUrl,
   openMidtransPaymentBrowser,
@@ -44,7 +45,7 @@ export default function CheckoutScreen() {
   const { payload } = useLocalSearchParams<{ payload?: string }>();
   const router = useRouter();
   const { colors, brand, isDark } = useAppTheme();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isOfficer, logout } = useAuth();
 
   const checkoutData = useMemo(() => {
     try {
@@ -54,16 +55,60 @@ export default function CheckoutScreen() {
     }
   }, [payload]);
 
-  const [buyerName, setBuyerName] = useState(user?.name || '');
-  const [buyerEmail, setBuyerEmail] = useState(user?.email || '');
-  const [buyerPhone, setBuyerPhone] = useState(user?.phone || '');
+  const [buyerNameInput, setBuyerNameInput] = useState<string | null>(null);
+  const [buyerEmailInput, setBuyerEmailInput] = useState<string | null>(null);
+  const [buyerPhoneInput, setBuyerPhoneInput] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethodId | null>(null);
 
+  const buyerName = buyerNameInput ?? (!isOfficer && user?.name ? user.name : '');
+  const buyerEmail = buyerEmailInput ?? (!isOfficer && user?.email ? user.email : '');
+  const buyerPhone = buyerPhoneInput ?? (!isOfficer && user?.phone ? user.phone : '');
+
+  const setBuyerName = setBuyerNameInput;
+  const setBuyerEmail = setBuyerEmailInput;
+  const setBuyerPhone = setBuyerPhoneInput;
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdBookingCode, setCreatedBookingCode] = useState<string | null>(null);
   const submitLockRef = useRef(false);
+  const createdBookingRef = useRef<{ bookingCode: string; paymentUrl: string | null } | null>(null);
+
+  if (isAuthenticated && isOfficer) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header showBack title="Checkout Tiket" />
+        <View style={styles.emptyWrap}>
+          <View style={[styles.roleIconWrap, { backgroundColor: brand.warningSoft }]}>
+            <ShieldAlert size={28} color={brand.warning} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text, marginTop: 12 }]}>
+            Sesi Role Tidak Sesuai
+          </Text>
+          <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+            Checkout tiket hanya tersedia untuk pembeli (User/Guest). Sesi aktif Anda saat ini adalah Officer ({user?.email}).
+          </Text>
+          <Button
+            title="Keluar & Masuk Akun Pembeli"
+            onPress={async () => {
+              await logout();
+              router.replace('/login' as any);
+            }}
+            variant="primary"
+            style={{ marginTop: 16, width: '100%', maxWidth: 320 }}
+          />
+          <Button
+            title="Kembali ke Portal Petugas"
+            onPress={() => router.replace('/officer' as any)}
+            variant="outline"
+            style={{ marginTop: 10, width: '100%', maxWidth: 320 }}
+          />
+        </View>
+      </View>
+    );
+  }
 
   if (!checkoutData) {
     return (
@@ -104,6 +149,14 @@ export default function CheckoutScreen() {
     !submitting;
 
   const handleConfirm = async () => {
+    // If a booking was already created for this checkout screen, NEVER create a duplicate booking.
+    if (createdBookingRef.current) {
+      router.replace({
+        pathname: '/order/[id]',
+        params: { id: createdBookingRef.current.bookingCode },
+      } as any);
+      return;
+    }
     if (submitLockRef.current || submitting) {
       return;
     }
@@ -159,6 +212,12 @@ export default function CheckoutScreen() {
           payment_url: rawPayUrl,
           booking_code: booking.booking_code,
         });
+
+        createdBookingRef.current = {
+          bookingCode: booking.booking_code,
+          paymentUrl: officialPaymentUrl,
+        };
+        setCreatedBookingCode(booking.booking_code);
 
         await saveBookingEntry({
           booking_code: booking.booking_code,
@@ -225,14 +284,19 @@ export default function CheckoutScreen() {
             <Text style={[styles.eventTitle, { color: colors.text }]}>{checkoutData.eventName}</Text>
 
             <View style={styles.eventMetaRow}>
-              {checkoutData.eventDate && (
-                <View style={styles.metaItem}>
-                  <CalendarDays size={13} color={brand.primary} />
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                    {formatTanggalSingkat(checkoutData.eventDate)}
-                  </Text>
-                </View>
-              )}
+              <View style={styles.metaItem}>
+                <CalendarDays size={13} color={brand.primary} />
+                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                  {formatEventSchedule(
+                    {
+                      event_type: checkoutData.eventType,
+                      event_date: checkoutData.eventDate,
+                      days_count: checkoutData.daysCount,
+                    },
+                    { short: true, includeTime: false }
+                  )}
+                </Text>
+              </View>
               {checkoutData.venue && (
                 <View style={styles.metaItem}>
                   <MapPin size={13} color={brand.primary} />
@@ -362,10 +426,14 @@ export default function CheckoutScreen() {
             ) : null}
 
             <Button
-              title={`Lanjut ke Pembayaran — ${formatRupiah(totalAmount)}`}
+              title={
+                createdBookingCode
+                  ? `Buka Detail Pesanan (${createdBookingCode})`
+                  : `Lanjut ke Pembayaran — ${formatRupiah(totalAmount)}`
+              }
               loadingTitle="Memproses Pesanan…"
               onPress={handleConfirm}
-              disabled={!isCheckoutReady}
+              disabled={!createdBookingCode && !isCheckoutReady}
               variant="gradient"
               size="lg"
               loading={submitting}
@@ -405,10 +473,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 6,
+    textAlign: 'center',
   },
   emptyDesc: {
     fontSize: 13,
     textAlign: 'center',
+    lineHeight: 19,
+  },
+  roleIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepBadgeRow: {
     marginBottom: 12,

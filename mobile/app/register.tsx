@@ -52,16 +52,18 @@ export default function RegisterScreen() {
     setError(null);
     setSuccessMsg(null);
 
-    if (!name.trim() || name.trim().length < 2) {
-      setError('Nama lengkap wajib diisi (minimal 2 karakter).');
+    if (!name.trim() || name.trim().length < 2 || name.trim().length > 120) {
+      setError('Nama lengkap wajib diisi (2 hingga 120 karakter).');
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
       setError('Masukkan alamat email yang valid.');
       return;
     }
-    if (!phone.trim() || phone.trim().length < 10) {
-      setError('Nomor telepon wajib diisi minimal 10 digit.');
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 20) {
+      setError('Nomor telepon wajib terdiri dari 10 hingga 20 digit angka.');
       return;
     }
     if (!password || password.length < 8) {
@@ -78,7 +80,7 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
-    const res = await register(name.trim(), email.trim(), phone.trim(), password);
+    const res = await register(name.trim(), email.trim(), cleanedPhone, password);
     setLoading(false);
 
     if (res.success) {

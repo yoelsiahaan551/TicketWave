@@ -119,13 +119,18 @@ export interface TicketItem {
   ticket_code: string;
   qr_token: string;
   status: TicketStatus;
+  checked_in_at?: string | null;
+  checked_in_by?: string | null;
   created_at?: string;
   booking_code?: string;
   booking_status?: BookingStatus;
   buyer_name?: string;
+  attendee_name?: string;
   recipient_email?: string;
   event_id?: number;
   event_name?: string;
+  event_type?: 'single' | 'festival' | null;
+  days_count?: number | null;
   poster_url?: string | null;
   city?: string;
   artist_name?: string;
@@ -250,9 +255,14 @@ export interface ScanResult {
 export interface ScanHistoryItem {
   id: string;
   ticket_code: string;
+  booking_code?: string;
   event_name?: string;
   buyer_name?: string;
+  attendee_name?: string;
+  ticket_type?: string;
   ticket_type_name?: string;
+  officer_name?: string;
+  timestamp?: string;
   scanned_at?: string;
   status?: string;
 }

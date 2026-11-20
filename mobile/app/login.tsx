@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Check,
@@ -27,8 +27,19 @@ import { Input } from '../src/components/common/Input';
 import { Button } from '../src/components/common/Button';
 import { Typography } from '../src/constants/Typography';
 
+function getSafeNextPath(rawNext?: string | string[]): string | null {
+  const val = Array.isArray(rawNext) ? rawNext[0] : rawNext;
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('://')) {
+    return null;
+  }
+  return trimmed;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
+  const { next: rawNext } = useLocalSearchParams<{ next?: string }>();
   const insets = useSafeAreaInsets();
   const colors = PublicThemePalette;
   const brand = BrandColors;
@@ -59,16 +70,20 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
 
-    const res = await login(email.trim(), password);
+    const res = await login(email.trim(), password, { remember: rememberMe });
 
     if (res.success && res.user) {
+      const safeNext = getSafeNextPath(rawNext);
       if (res.user.role === 'admin') {
-        router.replace('/admin' as any);
+        router.replace((safeNext?.startsWith('/admin') || safeNext?.startsWith('/order') ? safeNext : '/admin') as any);
       } else if (res.user.role === 'officer') {
-        router.replace('/officer' as any);
+        router.replace((safeNext?.startsWith('/officer') ? safeNext : '/officer') as any);
       } else {
-        router.replace('/(tabs)');
+        const allowUserNext =
+          safeNext && !safeNext.startsWith('/admin') && !safeNext.startsWith('/officer');
+        router.replace((allowUserNext ? safeNext : '/(tabs)') as any);
       }
+      setLoading(false);
     } else {
       setError(
         res.message ||

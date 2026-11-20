@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Calendar, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react-native';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
@@ -23,6 +24,7 @@ import { EventItem, EventStatus } from '../../src/types';
 import { formatTanggalSingkat } from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Input } from '../../src/components/common/Input';
+import { Button } from '../../src/components/common/Button';
 import { Badge } from '../../src/components/common/Badge';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { Skeleton } from '../../src/components/common/Skeleton';
@@ -43,46 +45,71 @@ export default function AdminEventsScreen() {
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [search, setSearch] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'single' | 'festival'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const [statusTarget, setStatusTarget] = useState<EventItem | null>(null);
 
+  const buildParams = useCallback(
+    (targetPage: number) => {
+      const params: any = { page: targetPage, per_page: 25 };
+      if (search.trim()) params.search = search.trim();
+      if (cityFilter.trim()) params.city = cityFilter.trim();
+      if (typeFilter !== 'all') params.event_type = typeFilter;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      return params;
+    },
+    [search, cityFilter, typeFilter, statusFilter]
+  );
+
   const refreshEvents = useCallback(async () => {
     try {
-      const params: any = { page: 1, per_page: 50 };
-      if (search.trim()) params.search = search.trim();
-      if (statusFilter !== 'all') params.status = statusFilter;
-
-      const res = await fetchAdminEvents(params);
-      setEvents(res.data?.items || []);
-    } catch {
-      setEvents([]);
+      const res = await fetchAdminEvents(buildParams(1));
+      const items = res.data?.items || [];
+      setEvents(items);
+      setPage(res.data?.page || 1);
+      setTotalPages(res.data?.total_pages || 1);
+      setTotalItems(res.data?.total_items ?? items.length);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat daftar event.');
     } finally {
       setRefreshing(false);
     }
-  }, [search, statusFilter]);
+  }, [buildParams]);
 
   useEffect(() => {
     let ignore = false;
-    const params: any = { page: 1, per_page: 50 };
-    if (search.trim()) params.search = search.trim();
-    if (statusFilter !== 'all') params.status = statusFilter;
 
-    fetchAdminEvents(params)
+    fetchAdminEvents(buildParams(1))
       .then((res) => {
         if (!ignore) {
-          setEvents(res.data?.items || []);
+          const items = res.data?.items || [];
+          setEvents(items);
+          setPage(res.data?.page || 1);
+          setTotalPages(res.data?.total_pages || 1);
+          setTotalItems(res.data?.total_items ?? items.length);
+          setError(null);
         }
       })
-      .catch(() => {
+      .catch((err: any) => {
         if (!ignore) {
           setEvents([]);
+          setError(err?.message || 'Gagal memuat daftar event.');
         }
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -91,25 +118,82 @@ export default function AdminEventsScreen() {
     return () => {
       ignore = true;
     };
-  }, [search, statusFilter]);
+  }, [buildParams]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      refreshEvents();
+    }, [refreshEvents])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
     refreshEvents();
   };
 
+  const handleLoadMore = async () => {
+    if (loadingMore || page >= totalPages) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await fetchAdminEvents(buildParams(nextPage));
+      const newItems = res.data?.items || [];
+      setEvents((prev) => [...prev, ...newItems.filter((n) => !prev.some((p) => p.id === n.id))]);
+      setPage(res.data?.page || nextPage);
+      setTotalPages(res.data?.total_pages || totalPages);
+      setTotalItems(res.data?.total_items ?? totalItems);
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat halaman berikutnya.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handleStatusUpdate = async (newStatus: EventStatus) => {
     if (!statusTarget) return;
+    setError(null);
     try {
       await updateAdminEventStatus(statusTarget.id, newStatus);
       setStatusTarget(null);
       await refreshEvents();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Gagal memperbarui status event.');
+      const msg = err?.message || 'Gagal memperbarui status event.';
+      setError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', msg);
+      }
+    }
+  };
+
+  const performDelete = async (ev: EventItem) => {
+    setError(null);
+    try {
+      await deleteAdminEvent(ev.id);
+      await refreshEvents();
+    } catch (err: any) {
+      const msg = err?.message || 'Event sudah memiliki tiket terjual.';
+      setError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Gagal Menghapus', msg);
+      }
     }
   };
 
   const handleDelete = (ev: EventItem) => {
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Apakah Anda yakin ingin menghapus event "${ev.name}"? Event yang sudah memiliki tiket terjual tidak dapat dihapus.`
+        )
+      ) {
+        return;
+      }
+      performDelete(ev);
+      return;
+    }
+
     Alert.alert(
       'Hapus Event',
       `Apakah Anda yakin ingin menghapus event "${ev.name}"? Event yang sudah memiliki tiket terjual tidak dapat dihapus.`,
@@ -118,14 +202,7 @@ export default function AdminEventsScreen() {
         {
           text: 'Hapus',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAdminEvent(ev.id);
-              await refreshEvents();
-            } catch (err: any) {
-              Alert.alert('Gagal Menghapus', err?.message || 'Event sudah memiliki tiket terjual.');
-            }
-          },
+          onPress: () => performDelete(ev),
         },
       ]
     );
@@ -136,7 +213,7 @@ export default function AdminEventsScreen() {
       <Header
         showBack
         title="Kelola Event"
-        subtitle={`${events.length} event terdaftar`}
+        subtitle={`${totalItems || events.length} event terdaftar`}
         rightAction={
           <TouchableOpacity
             onPress={() => router.push('/admin/event/create' as any)}
@@ -149,12 +226,48 @@ export default function AdminEventsScreen() {
 
       <View style={styles.filterSection}>
         <Input
-          placeholder="Cari nama event atau kota..."
+          placeholder="Cari nama event..."
           value={search}
           onChangeText={setSearch}
           leftIcon={<Search size={16} color={brand.primary} />}
           containerStyle={{ marginBottom: 8 }}
         />
+
+        <Input
+          placeholder="Filter kota (mis. Jakarta, Bandung)..."
+          value={cityFilter}
+          onChangeText={setCityFilter}
+          containerStyle={{ marginBottom: 8 }}
+        />
+
+        <View style={styles.typeFilterRow}>
+          {(['all', 'single', 'festival'] as const).map((tp) => {
+            const active = typeFilter === tp;
+            return (
+              <TouchableOpacity
+                key={tp}
+                onPress={() => setTypeFilter(tp)}
+                style={[
+                  styles.statusChip,
+                  {
+                    backgroundColor: active ? brand.cyan : colors.surfaceElevated,
+                    borderColor: active ? brand.cyan : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    Typography.caption,
+                    styles.statusChipText,
+                    { color: active ? '#FFFFFF' : colors.textSecondary },
+                  ]}
+                >
+                  {tp === 'all' ? 'Semua Tipe' : tp}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <ScrollView
           horizontal
@@ -188,6 +301,14 @@ export default function AdminEventsScreen() {
             );
           })}
         </ScrollView>
+
+        {error && (
+          <View style={[styles.errorBanner, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
+            <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>
+              {error}
+            </Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -284,6 +405,18 @@ export default function AdminEventsScreen() {
               onAction={() => router.push('/admin/event/create' as any)}
             />
           }
+          ListFooterComponent={
+            page < totalPages ? (
+              <Button
+                title={loadingMore ? 'Memuat...' : `Muat Lebih Banyak (Hal ${page}/${totalPages})`}
+                onPress={handleLoadMore}
+                loading={loadingMore}
+                variant="outline"
+                size="md"
+                style={{ marginTop: 8, marginBottom: 16 }}
+              />
+            ) : undefined
+          }
         />
       )}
 
@@ -344,6 +477,17 @@ const styles = StyleSheet.create({
   filterSection: {
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  typeFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  errorBanner: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 6,
   },
   statusScroll: {
     gap: 8,

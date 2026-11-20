@@ -35,15 +35,57 @@ export function isMidtransProductionClient(): boolean {
 }
 
 export function getPaymentMethodLabel(method?: string | null): string {
-  switch (method) {
+  if (!method) return '-';
+  const raw = method.trim();
+  const lower = raw.toLowerCase();
+
+  switch (lower) {
     case 'transfer_bank':
       return 'Transfer Bank';
     case 'virtual_account':
       return 'Virtual Account';
     case 'qris':
+    case 'other_qris':
       return 'QRIS';
-    default:
-      return method || '-';
+    case 'gopay':
+      return 'GoPay';
+    case 'shopeepay':
+      return 'ShopeePay';
+    case 'echannel':
+      return 'Mandiri Bill / Virtual Account';
+    case 'permata':
+    case 'permata_va':
+      return 'Virtual Account Permata';
+    case 'bca_va':
+      return 'Virtual Account BCA';
+    case 'bni_va':
+      return 'Virtual Account BNI';
+    case 'bri_va':
+      return 'Virtual Account BRI';
+    case 'cimb_va':
+      return 'Virtual Account CIMB Niaga';
+    case 'credit_card':
+      return 'Kartu Kredit / Debit';
+    case 'cstore':
+      return 'Gerai Retail (Indomaret / Alfamart)';
+    case 'akulaku':
+      return 'Akulaku';
+    case 'kredivo':
+      return 'Kredivo';
+    default: {
+      if (lower.startsWith('bank_transfer:')) {
+        const bankRaw = lower.split(':')[1] || '';
+        if (bankRaw === 'permata') return 'Virtual Account Permata';
+        if (bankRaw === 'cimb') return 'Virtual Account CIMB Niaga';
+        const bank = bankRaw.toUpperCase();
+        return bank ? `Virtual Account ${bank}` : 'Transfer Bank';
+      }
+      if (lower.startsWith('cstore:')) {
+        const store = lower.split(':')[1];
+        return store ? `Retail (${store.toUpperCase()})` : 'Gerai Retail';
+      }
+      return raw;
+    }
   }
 }
 

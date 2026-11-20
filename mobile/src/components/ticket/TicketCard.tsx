@@ -9,7 +9,7 @@ import {
 import { CalendarDays, MapPin, QrCode } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { TicketItem } from '../../types';
-import { formatTanggalSingkat, formatWaktu } from '../../utils/formatters';
+import { formatEventSchedule, isTicketQrEligible } from '../../utils/formatters';
 import { Badge } from '../common/Badge';
 import { FALLBACK_EVENT_IMAGE } from '../../constants/Config';
 
@@ -21,8 +21,7 @@ interface TicketCardProps {
 export function TicketCard({ ticket, onShowQR }: TicketCardProps) {
   const { colors, brand } = useAppTheme();
 
-  const isPaid = ticket.booking_status === 'paid' || !ticket.booking_status;
-  const isValid = isPaid && (ticket.status === 'valid' || ticket.status === 'aktif');
+  const isValid = isTicketQrEligible(ticket.booking_status, ticket);
 
   return (
     <View
@@ -63,8 +62,7 @@ export function TicketCard({ ticket, onShowQR }: TicketCardProps) {
         <View style={styles.metaRow}>
           <CalendarDays size={13} color={brand.primary} />
           <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
-            {ticket.event_date ? formatTanggalSingkat(ticket.event_date) : 'Jadwal Segera'}
-            {ticket.event_time ? ` • ${formatWaktu(ticket.event_time)}` : ''}
+            {formatEventSchedule(ticket, { short: true, includeTime: true })}
           </Text>
         </View>
 

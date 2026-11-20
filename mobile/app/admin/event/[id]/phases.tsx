@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import {
   createTicketPhase,
   deleteTicketPhase,
   fetchAdminEventDetail,
+  fetchTicketPhaseDetail,
   fetchTicketPhases,
   updateTicketPhase,
 } from '@/src/api/endpoints';
@@ -43,6 +45,8 @@ export default function AdminTicketPhasesScreen() {
   );
   const [phases, setPhases] = useState<TicketPhase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [phasesLoading, setPhasesLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Modal Form (Create or Edit Phase)
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,54 +58,45 @@ export default function AdminTicketPhasesScreen() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const refreshPhases = useCallback(async () => {
-    if (!id) return;
-    try {
-      const evRes = await fetchAdminEventDetail(id);
-      const ev = evRes.data || null;
-      setEvent(ev);
-
-      const tts = ev?.ticket_types || [];
-      const activeTtId = selectedTtId || tts[0]?.id || null;
-      setSelectedTtId(activeTtId);
-
-      if (activeTtId) {
-        const phRes = await fetchTicketPhases(activeTtId);
-        setPhases(phRes.data?.phases || []);
-      } else {
-        setPhases([]);
-      }
-    } catch {
+  const loadPhasesForTicketType = useCallback(async (ttId: number | null) => {
+    if (!ttId) {
       setPhases([]);
+      return;
     }
-  }, [id, selectedTtId]);
+    setPhasesLoading(true);
+    try {
+      const phRes = await fetchTicketPhases(ttId);
+      setPhases(phRes.data?.phases || []);
+      setPageError(null);
+    } catch (err: any) {
+      setPhases([]);
+      setPageError(err?.message || 'Gagal memuat daftar fase tiket.');
+    } finally {
+      setPhasesLoading(false);
+    }
+  }, []);
 
+  // Load event metadata once per event id
   useEffect(() => {
     if (!id) return;
     let ignore = false;
 
     fetchAdminEventDetail(id)
-      .then(async (evRes) => {
+      .then((evRes) => {
         if (ignore) return;
         const ev = evRes.data || null;
         setEvent(ev);
-
         const tts = ev?.ticket_types || [];
-        const activeTtId = selectedTtId || tts[0]?.id || null;
-        setSelectedTtId(activeTtId);
-
-        if (activeTtId) {
-          const phRes = await fetchTicketPhases(activeTtId);
-          if (!ignore) {
-            setPhases(phRes.data?.phases || []);
-          }
-        } else {
-          setPhases([]);
-        }
+        setSelectedTtId((prev) => {
+          if (prev && tts.some((t) => t.id === prev)) return prev;
+          const fromParam = ticketTypeId ? Number(ticketTypeId) : null;
+          if (fromParam && tts.some((t) => t.id === fromParam)) return fromParam;
+          return tts[0]?.id || null;
+        });
       })
-      .catch(() => {
+      .catch((err: any) => {
         if (!ignore) {
-          setPhases([]);
+          setPageError(err?.message || 'Gagal memuat detail event.');
         }
       })
       .finally(() => {
@@ -113,19 +108,48 @@ export default function AdminTicketPhasesScreen() {
     return () => {
       ignore = true;
     };
-  }, [id, selectedTtId]);
+  }, [id, ticketTypeId]);
+
+  // Fetch phases only when selectedTtId changes
+  useEffect(() => {
+    if (!selectedTtId) return;
+    let ignore = false;
+
+    fetchTicketPhases(selectedTtId)
+      .then((phRes) => {
+        if (!ignore) {
+          setPhases(phRes.data?.phases || []);
+          setPageError(null);
+        }
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setPhases([]);
+          setPageError(err?.message || 'Gagal memuat daftar fase tiket.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setPhasesLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedTtId]);
 
   const openCreateModal = () => {
     setEditingPhase(null);
     setPhaseName('early_bird');
-    setStartDate('2026-11-01');
-    setEndDate('2026-11-10');
+    setStartDate('2026-11-25');
+    setEndDate('2026-12-05');
     setDiscountPercent('15');
     setFormError(null);
     setModalOpen(true);
   };
 
-  const openEditModal = (p: TicketPhase) => {
+  const openEditModal = async (p: TicketPhase) => {
     setEditingPhase(p);
     setPhaseName(p.phase_name);
     setStartDate(p.start_date);
@@ -133,19 +157,51 @@ export default function AdminTicketPhasesScreen() {
     setDiscountPercent(String(p.discount_percent));
     setFormError(null);
     setModalOpen(true);
+
+    // Hydrate latest phase details from GET /api/phases/<id>
+    try {
+      const detailRes = await fetchTicketPhaseDetail(p.id);
+      if (detailRes.success && detailRes.data) {
+        const fresh = detailRes.data;
+        setEditingPhase(fresh);
+        setPhaseName(fresh.phase_name);
+        setStartDate(fresh.start_date);
+        setEndDate(fresh.end_date);
+        setDiscountPercent(String(fresh.discount_percent));
+      }
+    } catch {
+      // keep existing phase values on fallback
+    }
   };
 
   const handleSavePhase = async () => {
     if (!selectedTtId) return;
     setFormError(null);
-    setSaving(true);
 
+    const sDate = startDate.trim();
+    const eDate = endDate.trim();
+    const disc = Number(discountPercent);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sDate) || !/^\d{4}-\d{2}-\d{2}$/.test(eDate)) {
+      setFormError('Tanggal mulai dan berakhir harus berformat YYYY-MM-DD.');
+      return;
+    }
+    if (sDate >= eDate) {
+      setFormError('Tanggal berakhir harus setelah tanggal mulai.');
+      return;
+    }
+    if (!Number.isFinite(disc) || disc < 0 || disc > 100) {
+      setFormError('Persentase diskon harus antara 0 hingga 100.');
+      return;
+    }
+
+    setSaving(true);
     try {
       const payload = {
         phase_name: phaseName,
-        start_date: startDate.trim(),
-        end_date: endDate.trim(),
-        discount_percent: Number(discountPercent) || 0,
+        start_date: sDate,
+        end_date: eDate,
+        discount_percent: disc,
       };
 
       if (editingPhase) {
@@ -154,7 +210,7 @@ export default function AdminTicketPhasesScreen() {
         await createTicketPhase(selectedTtId, payload);
       }
       setModalOpen(false);
-      await refreshPhases();
+      await loadPhasesForTicketType(selectedTtId);
     } catch (err: any) {
       setFormError(err?.message || 'Gagal menyimpan fase harga.');
     } finally {
@@ -162,25 +218,48 @@ export default function AdminTicketPhasesScreen() {
     }
   };
 
+  const performDeletePhase = async (p: TicketPhase) => {
+    try {
+      await deleteTicketPhase(p.id);
+      await loadPhasesForTicketType(selectedTtId);
+    } catch (err: any) {
+      const msg = err?.message || 'Gagal menghapus fase.';
+      setPageError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', msg);
+      }
+    }
+  };
+
   const handleDeletePhase = (p: TicketPhase) => {
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(`Hapus fase "${p.phase_name}" (${p.start_date} - ${p.end_date})?`)
+      ) {
+        return;
+      }
+      performDeletePhase(p);
+      return;
+    }
+
     Alert.alert('Hapus Fase', `Hapus fase "${p.phase_name}" (${p.start_date} - ${p.end_date})?`, [
       { text: 'Batal', style: 'cancel' },
       {
         text: 'Hapus',
         style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteTicketPhase(p.id);
-            await refreshPhases();
-          } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Gagal menghapus fase.');
-          }
-        },
+        onPress: () => performDeletePhase(p),
       },
     ]);
   };
 
   const ticketTypes: TicketType[] = event?.ticket_types || [];
+  const selectedTt = ticketTypes.find((t) => t.id === selectedTtId) || null;
+  const previewDiscount = Number(discountPercent);
+  const previewFinalPrice =
+    selectedTt && Number.isFinite(previewDiscount) && previewDiscount >= 0 && previewDiscount <= 100
+      ? Math.round(Number(selectedTt.base_price || 0) * (1 - previewDiscount / 100))
+      : null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -233,7 +312,15 @@ export default function AdminTicketPhasesScreen() {
           })}
         </ScrollView>
 
-        {loading ? (
+        {pageError && (
+          <View style={[styles.errorBox, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
+            <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>
+              {pageError}
+            </Text>
+          </View>
+        )}
+
+        {loading || phasesLoading ? (
           <View style={{ gap: 12, marginTop: 14 }}>
             {[1, 2].map((i) => (
               <View
@@ -287,6 +374,14 @@ export default function AdminTicketPhasesScreen() {
                   {p.start_date} s/d {p.end_date}
                 </Text>
               </View>
+              {selectedTt && (
+                <Text style={[Typography.caption, { color: brand.primary, fontWeight: '700', marginBottom: 10 }]}>
+                  Estimasi Harga Fase:{' '}
+                  {formatRupiah(
+                    Math.round(Number(selectedTt.base_price || 0) * (1 - Number(p.discount_percent || 0) / 100))
+                  )}
+                </Text>
+              )}
 
               <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
                 <TouchableOpacity onPress={() => openEditModal(p)} style={styles.actionBtn}>
@@ -370,6 +465,12 @@ export default function AdminTicketPhasesScreen() {
               keyboardType="number-pad"
               placeholder="15"
             />
+
+            {previewFinalPrice !== null && (
+              <Text style={[Typography.caption, { color: brand.primary, fontWeight: '700', marginTop: 4 }]}>
+                Estimasi Harga Setelah Diskon: {formatRupiah(previewFinalPrice)}
+              </Text>
+            )}
 
             <Button
               title={saving ? 'Menyimpan...' : 'Simpan Fase'}

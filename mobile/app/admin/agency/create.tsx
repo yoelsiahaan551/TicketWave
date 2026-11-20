@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -33,6 +33,8 @@ export default function AdminCreateAgencyScreen() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const createdAgencyIdRef = useRef<number | null>(null);
 
   const handlePickLogo = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,37 +53,77 @@ export default function AdminCreateAgencyScreen() {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!name.trim() || !picName.trim() || !email.trim() || !phone.trim()) {
-      setError('Nama agency, nama PIC, email, dan nomor telepon wajib diisi.');
+    setWarning(null);
+
+    if (createdAgencyIdRef.current) {
+      router.replace(`/admin/agency/${createdAgencyIdRef.current}` as any);
+      return;
+    }
+
+    const cleanName = name.trim();
+    const cleanPic = picName.trim();
+    const cleanEmail = email.trim();
+    const cleanPhone = phone.trim();
+
+    if (cleanName.length < 2 || cleanName.length > 150) {
+      setError('Nama agency wajib diisi (2–150 karakter).');
+      return;
+    }
+    if (cleanPic.length < 2 || cleanPic.length > 120) {
+      setError('Nama PIC wajib diisi (2–120 karakter).');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Format email agency tidak valid.');
+      return;
+    }
+    if (cleanPhone.length < 8 || cleanPhone.length > 20) {
+      setError('Nomor telepon wajib diisi (8–20 karakter).');
       return;
     }
 
     setSubmitting(true);
     try {
       const res = await createAdminAgency({
-        name: name.trim(),
-        pic_name: picName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        name: cleanName,
+        pic_name: cleanPic,
+        email: cleanEmail,
+        phone: cleanPhone,
         address: address.trim() || undefined,
       });
 
       const agencyId = res.data?.id;
+      if (agencyId) {
+        createdAgencyIdRef.current = agencyId;
+      }
+
       if (agencyId && logoUri) {
         try {
-          console.log(`[Upload] Uploading logo for agency ${agencyId}...`);
           await uploadAgencyLogo(agencyId, logoUri);
-          console.log('[Upload] Logo upload succeeded!');
+          setLogoUri(null);
         } catch (uploadErr: any) {
-          console.warn('[Upload Blocker ISSUE-03] Logo upload failed (BLOCKED-BY-BACKEND):', uploadErr?.message);
-          setError(`Upload Logo Gagal (BLOCKED-BY-BACKEND ISSUE-03 Cloudinary HTTP 500): ${uploadErr?.message}`);
+          const warnMsg = `Agency "${cleanName}" berhasil dibuat (#${agencyId}), namun unggah logo gagal karena layanan media backend (ISSUE-03): ${uploadErr?.message || 'HTTP 500'}.`;
+          setWarning(warnMsg);
+          if (Platform.OS !== 'web') {
+            Alert.alert('Agency Dibuat (Logo Gagal)', warnMsg, [
+              { text: 'Lihat Detail', onPress: () => router.replace(`/admin/agency/${agencyId}` as any) },
+            ]);
+          }
           return;
         }
       }
 
-      Alert.alert('Sukses', `Agency "${name}" berhasil ditambahkan!`, [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      if (Platform.OS === 'web') {
+        router.replace((agencyId ? `/admin/agency/${agencyId}` : '/admin/agencies') as any);
+      } else {
+        Alert.alert('Sukses', `Agency "${cleanName}" berhasil ditambahkan!`, [
+          {
+            text: 'OK',
+            onPress: () =>
+              router.replace((agencyId ? `/admin/agency/${agencyId}` : '/admin/agencies') as any),
+          },
+        ]);
+      }
     } catch (err: any) {
       setError(err?.message || 'Gagal menambahkan agency.');
     } finally {
@@ -91,7 +133,7 @@ export default function AdminCreateAgencyScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header showBack title="Tambah Agency" subtitle="POST /api/agencies" />
+      <Header showBack title="Tambah Agency" subtitle="Daftarkan promotor event resmi" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -101,6 +143,18 @@ export default function AdminCreateAgencyScreen() {
           {error && (
             <View style={[styles.errorBox, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
               <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>{error}</Text>
+            </View>
+          )}
+          {warning && (
+            <View style={[styles.errorBox, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
+              <Text style={[Typography.caption, { color: brand.warning, fontWeight: '700' }]}>{warning}</Text>
+              <Button
+                title="Buka Detail Agency"
+                onPress={() => router.replace(`/admin/agency/${createdAgencyIdRef.current}` as any)}
+                size="sm"
+                variant="outline"
+                style={{ marginTop: 10 }}
+              />
             </View>
           )}
 

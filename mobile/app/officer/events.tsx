@@ -19,6 +19,7 @@ import {
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { fetchPublicEvents } from '../../src/api/endpoints';
 import { EventItem } from '../../src/types';
+import { formatEventSchedule } from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Badge } from '../../src/components/common/Badge';
 import { Button } from '../../src/components/common/Button';
@@ -101,7 +102,7 @@ export default function OfficerEventsScreen() {
               Katalog Event Operasional Gate
             </Text>
             <Text style={[Typography.caption, styles.noticeDesc, { color: colors.textSecondary }]}>
-              Catatan: Backend Flask belum menyediakan entitas/relasi penugasan officer ke event spesifik (BLOCKED-BY-BACKEND). Seluruh event publik berstatus aktif di bawah ini dapat dipindai dan divalidasi oleh petugas.
+              Catatan: Backend saat ini belum memiliki relasi penugasan gate per petugas (ISSUE-07). Seluruh event publik aktif di bawah ini dapat divalidasi oleh petugas gate.
             </Text>
           </View>
         </View>
@@ -148,14 +149,12 @@ export default function OfficerEventsScreen() {
                       {ev.venue}, {ev.city}
                     </Text>
                   </View>
-                  {ev.event_date && (
-                    <View style={styles.metaRow}>
-                      <Calendar size={14} color={brand.cyan} />
-                      <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                        {ev.event_date} {ev.event_time ? `• ${ev.event_time}` : ''}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={styles.metaRow}>
+                    <Calendar size={14} color={brand.cyan} />
+                    <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                      {formatEventSchedule(ev, { short: true, includeTime: true })}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={{ marginTop: 12 }}>

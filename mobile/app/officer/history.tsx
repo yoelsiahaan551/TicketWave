@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import {
   AlertTriangle,
   Clock,
@@ -15,6 +16,10 @@ import {
 
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { fetchScanHistoryWithMeta } from '../../src/api/endpoints';
+import {
+  formatWibDateTime,
+  getOfficerStatusBadgeVariant,
+} from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Badge } from '../../src/components/common/Badge';
 import { EmptyState } from '../../src/components/common/EmptyState';
@@ -35,6 +40,24 @@ export default function OfficerHistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetchScanHistoryWithMeta();
+      if (res.success) {
+        setHistoryItems(res.data || []);
+        setError(null);
+      } else {
+        setError(res.error || 'Gagal memuat riwayat scan.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat riwayat.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -45,24 +68,17 @@ export default function OfficerHistoryScreen() {
           setHistoryItems(res.data || []);
           setError(null);
         } else {
-          setError(
-            res.error?.includes('404')
-              ? 'Endpoint riwayat belum aktif di backend Flask (/api/scan/history - BLOCKED-BY-BACKEND).'
-              : res.error || 'Gagal memuat riwayat scan.'
-          );
+          setError(res.error || 'Gagal memuat riwayat scan.');
         }
       })
       .catch((err: any) => {
         if (!ignore) {
-          setError(
-            err?.status === 404
-              ? 'Endpoint riwayat scan belum didaftarkan di Flask backend (BLOCKED-BY-BACKEND).'
-              : err?.message || 'Gagal memuat riwayat.'
-          );
+          setError(err?.message || 'Gagal memuat riwayat.');
         }
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -73,41 +89,38 @@ export default function OfficerHistoryScreen() {
     };
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      loadHistory();
+    }, [loadHistory])
+  );
+
   const onRefresh = () => {
     setRefreshing(true);
-    fetchScanHistoryWithMeta()
-      .then((res) => {
-        if (res.success) {
-          setHistoryItems(res.data || []);
-          setError(null);
-        } else {
-          setError(
-            res.error?.includes('404')
-              ? 'Endpoint riwayat belum aktif di backend Flask (/api/scan/history - BLOCKED-BY-BACKEND).'
-              : res.error || 'Gagal memuat riwayat scan.'
-          );
-        }
-      })
-      .catch((err: any) => {
-        setError(
-          err?.status === 404
-            ? 'Endpoint riwayat scan belum didaftarkan di Flask backend (BLOCKED-BY-BACKEND).'
-            : err?.message || 'Gagal memuat riwayat.'
-        );
-      })
-      .finally(() => {
-        setRefreshing(false);
-      });
+    loadHistory();
   };
 
   const filteredItems = historyItems.filter((item) => {
     if (filter === 'all') return true;
     const st = String(item?.status || '').toLowerCase();
     if (filter === 'success') {
-      return st.includes('berhasil') || st.includes('valid') || st.includes('sukses');
+      return (
+        !st.includes('tidak') &&
+        (st === 'valid' ||
+          st.includes('berhasil') ||
+          st.includes('sukses') ||
+          st.includes('selesai'))
+      );
     }
     if (filter === 'failed') {
-      return st.includes('ditolak') || st.includes('invalid') || st.includes('used') || st.includes('sudah');
+      return (
+        st.includes('tidak') ||
+        st.includes('ditolak') ||
+        st.includes('invalid') ||
+        st.includes('used') ||
+        st.includes('sudah')
+      );
     }
     return true;
   });
@@ -158,14 +171,14 @@ export default function OfficerHistoryScreen() {
         })}
       </View>
 
-      {/* Backend Blocker Alert Banner (if error) */}
+      {/* Error Alert Banner (if error) */}
       {error && (
         <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
           <View style={[styles.alertCard, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
             <AlertTriangle size={20} color={brand.warning} />
             <View style={{ flex: 1 }}>
               <Text style={[Typography.h4, { color: brand.warning }]}>
-                Kendala Server (BLOCKED-BY-BACKEND)
+                Gagal Memuat Riwayat
               </Text>
               <Text style={[Typography.caption, { color: colors.textSecondary, marginTop: 2 }]}>
                 {error}
@@ -205,33 +218,34 @@ export default function OfficerHistoryScreen() {
           renderItem={({ item }) => (
             <View style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.itemHeader}>
-                <View>
+                <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={[styles.itemCode, { color: colors.text }]}>
                     {item.ticket_code || 'Tiket'}
                   </Text>
                   <Text style={[Typography.caption, { color: colors.textMuted, marginTop: 2 }]}>
-                    {item.scanned_at || 'Waktu tidak tercatat'}
+                    {formatWibDateTime(item.scanned_at || item.checked_in_at || item.timestamp)}
                   </Text>
                 </View>
                 <Badge
                   label={item.status || 'Berhasil'}
-                  variant={
-                    String(item.status || '').toLowerCase().includes('berhasil') ||
-                    String(item.status || '').toLowerCase().includes('valid')
-                      ? 'success'
-                      : 'neutral'
-                  }
+                  variant={getOfficerStatusBadgeVariant(item.status)}
                 />
               </View>
 
               <View style={[styles.itemFooter, { borderTopColor: colors.border }]}>
                 <View style={styles.footerCol}>
                   <Text style={[Typography.caption, { color: colors.textSecondary }]}>
-                    Event: {item.event_name || '-'}
+                    Event: {item.event_name || '-'} ({item.ticket_type_name || item.ticket_type || 'Standard'})
                   </Text>
                   <Text style={[Typography.caption, { color: colors.textSecondary }]}>
-                    Pembeli: {item.buyer_name || '-'}
+                    Pembeli: {item.buyer_name || item.attendee_name || '-'}
+                    {item.booking_code ? ` • ${item.booking_code}` : ''}
                   </Text>
+                  {item.officer_name ? (
+                    <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                      Petugas: {item.officer_name}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>

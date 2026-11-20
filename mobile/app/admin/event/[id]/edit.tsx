@@ -1,22 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { Upload } from 'lucide-react-native';
 
 import { useAppTheme } from '@/src/context/ThemeContext';
-import { fetchAdminEventDetail, updateAdminEvent } from '@/src/api/endpoints';
+import {
+  fetchAdminEventDetail,
+  updateAdminEvent,
+  uploadEventMedia,
+} from '@/src/api/endpoints';
+import { EventStatus } from '@/src/types';
 import { Header } from '@/src/components/common/Header';
 import { Input } from '@/src/components/common/Input';
 import { Button } from '@/src/components/common/Button';
 import { Skeleton } from '@/src/components/common/Skeleton';
 import { Typography } from '@/src/constants/Typography';
+
+const ALL_STATUSES: EventStatus[] = [
+  'draft',
+  'published',
+  'on_sale',
+  'sales_closed',
+  'ongoing',
+  'finished',
+  'archived',
+];
 
 export default function AdminEditEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,11 +50,17 @@ export default function AdminEditEventScreen() {
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('');
   const [description, setDescription] = useState('');
+  const [status, setStatus] = useState<EventStatus>('draft');
   const [artistName, setArtistName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [daysCount, setDaysCount] = useState('');
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [newPosterUri, setNewPosterUri] = useState<string | null>(null);
+  const [newBannerUri, setNewBannerUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -48,18 +73,44 @@ export default function AdminEditEventScreen() {
           setVenue(ev.venue || '');
           setCity(ev.city || '');
           setDescription(ev.description || '');
+          setStatus(ev.status || 'draft');
           setArtistName(ev.artist_name || '');
           setEventDate(ev.event_date || '');
           setEventTime(ev.event_time || '');
           setDaysCount(ev.days_count ? String(ev.days_count) : '');
+          setPosterUrl(ev.poster_url || null);
+          setBannerUrl(ev.banner_url || null);
         }
       })
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handlePickMedia = async (type: 'poster' | 'banner') => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Izin Galeri', 'Aplikasi memerlukan izin untuk memilih gambar.');
+      return;
+    }
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!picked.canceled && picked.assets?.[0]?.uri) {
+      if (type === 'poster') setNewPosterUri(picked.assets[0].uri);
+      else setNewBannerUri(picked.assets[0].uri);
+    }
+  };
+
   const handleSave = async () => {
     if (!id) return;
     setError(null);
+    setWarning(null);
+
+    if (name.trim().length < 3 || venue.trim().length < 3 || city.trim().length < 2) {
+      setError('Nama event (min 3), venue (min 3), dan kota (min 2) wajib diisi.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -68,19 +119,63 @@ export default function AdminEditEventScreen() {
         venue: venue.trim(),
         city: city.trim(),
         description: description.trim() || null,
+        status,
       };
       if (eventType === 'single') {
         if (artistName.trim()) payload.artist_name = artistName.trim();
         if (eventDate.trim()) payload.event_date = eventDate.trim();
-        if (eventTime.trim()) payload.event_time = eventTime.trim();
+        if (eventTime.trim()) {
+          const t = eventTime.trim();
+          payload.event_time = /^\d{2}:\d{2}$/.test(t) ? `${t}:00` : t;
+        }
       } else if (daysCount) {
-        payload.days_count = Number(daysCount);
+        const parsedDays = Number(daysCount);
+        if (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 10) {
+          setError('Jumlah hari festival harus 1 sampai 10.');
+          setSubmitting(false);
+          return;
+        }
+        payload.days_count = parsedDays;
       }
 
       await updateAdminEvent(id, payload);
-      Alert.alert('Tersimpan', 'Informasi event berhasil diperbarui.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+
+      const mediaFailures: string[] = [];
+      if (newPosterUri) {
+        try {
+          const pRes = await uploadEventMedia(id, 'poster', newPosterUri);
+          if (pRes.data?.poster_url) setPosterUrl(pRes.data.poster_url);
+          setNewPosterUri(null);
+        } catch (err: any) {
+          mediaFailures.push(`Poster: ${err?.message || 'HTTP 500'}`);
+        }
+      }
+      if (newBannerUri) {
+        try {
+          const bRes = await uploadEventMedia(id, 'banner', newBannerUri);
+          if (bRes.data?.banner_url) setBannerUrl(bRes.data.banner_url);
+          setNewBannerUri(null);
+        } catch (err: any) {
+          mediaFailures.push(`Banner: ${err?.message || 'HTTP 500'}`);
+        }
+      }
+
+      if (mediaFailures.length > 0) {
+        const warnMsg = `Metadata event tersimpan, namun unggah media gagal (ISSUE-03 Cloudinary Backend): ${mediaFailures.join('; ')}`;
+        setWarning(warnMsg);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Metadata Tersimpan (Media Gagal)', warnMsg);
+        }
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        router.back();
+      } else {
+        Alert.alert('Tersimpan', 'Informasi event berhasil diperbarui.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      }
     } catch (err: any) {
       setError(err?.message || 'Gagal memperbarui event.');
     } finally {
@@ -104,7 +199,7 @@ export default function AdminEditEventScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header showBack title="Edit Event" subtitle={`PUT /api/events/${id}`} />
+      <Header showBack title="Edit Event" subtitle={`Event #${id} • ${eventType.toUpperCase()}`} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -114,6 +209,11 @@ export default function AdminEditEventScreen() {
           {error && (
             <View style={[styles.errorBox, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
               <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>{error}</Text>
+            </View>
+          )}
+          {warning && (
+            <View style={[styles.errorBox, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
+              <Text style={[Typography.caption, { color: brand.warning, fontWeight: '700' }]}>{warning}</Text>
             </View>
           )}
 
@@ -128,6 +228,41 @@ export default function AdminEditEventScreen() {
               multiline
               numberOfLines={3}
             />
+
+            <Text style={[Typography.caption, styles.label, { color: colors.textSecondary }]}>
+              Status Event
+            </Text>
+            <View style={styles.statusGrid}>
+              {ALL_STATUSES.map((st) => {
+                const active = status === st;
+                return (
+                  <TouchableOpacity
+                    key={st}
+                    onPress={() => setStatus(st)}
+                    style={[
+                      styles.statusChip,
+                      {
+                        backgroundColor: active ? brand.primary : colors.surfaceElevated,
+                        borderColor: active ? brand.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        Typography.caption,
+                        {
+                          color: active ? '#FFFFFF' : colors.textSecondary,
+                          fontWeight: '700',
+                          textTransform: 'capitalize',
+                        },
+                      ]}
+                    >
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             {eventType === 'single' ? (
               <>
@@ -145,12 +280,56 @@ export default function AdminEditEventScreen() {
               </>
             ) : (
               <Input
-                label="Jumlah Hari Festival"
+                label="Jumlah Hari Festival (1-10)"
                 value={daysCount}
                 onChangeText={setDaysCount}
                 keyboardType="number-pad"
               />
             )}
+
+            {/* Media Upload Controls */}
+            <Text style={[Typography.caption, styles.label, { color: colors.textSecondary, marginTop: 4 }]}>
+              Poster &amp; Banner (Opsional)
+            </Text>
+            <View style={styles.mediaRow}>
+              <View style={styles.mediaCol}>
+                {(newPosterUri || posterUrl) && (
+                  <Image source={{ uri: newPosterUri || posterUrl! }} style={styles.mediaPreview} />
+                )}
+                <Button
+                  title={newPosterUri ? 'Ganti Poster' : 'Pilih Poster'}
+                  onPress={() => handlePickMedia('poster')}
+                  size="sm"
+                  variant="secondary"
+                  icon={<Upload size={14} color={colors.text} />}
+                />
+              </View>
+              <View style={styles.mediaCol}>
+                {(newBannerUri || bannerUrl) && (
+                  <Image source={{ uri: newBannerUri || bannerUrl! }} style={styles.mediaPreview} />
+                )}
+                <Button
+                  title={newBannerUri ? 'Ganti Banner' : 'Pilih Banner'}
+                  onPress={() => handlePickMedia('banner')}
+                  size="sm"
+                  variant="secondary"
+                  icon={<Upload size={14} color={colors.text} />}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.infoNote, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+              <Text style={[Typography.caption, { color: colors.textSecondary, lineHeight: 17 }]}>
+                Catatan: Kategori tiket dan lineup festival dikonfigurasi saat pembuatan event. Fase harga tiket dapat dikelola langsung melalui menu Fase Harga.
+              </Text>
+              <Button
+                title="Kelola Fase Harga Tiket"
+                onPress={() => router.push(`/admin/event/${id}/phases` as any)}
+                variant="outline"
+                size="sm"
+                style={{ marginTop: 8 }}
+              />
+            </View>
 
             <Button
               title="Simpan Perubahan"
@@ -158,7 +337,7 @@ export default function AdminEditEventScreen() {
               loading={submitting}
               variant="gradient"
               size="lg"
-              style={{ marginTop: 8 }}
+              style={{ marginTop: 12 }}
             />
           </View>
         </ScrollView>
@@ -185,5 +364,42 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     padding: 18,
+  },
+  label: {
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  statusChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  mediaRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  mediaCol: {
+    flex: 1,
+    gap: 8,
+  },
+  mediaPreview: {
+    width: '100%',
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
+  },
+  infoNote: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
   },
 });

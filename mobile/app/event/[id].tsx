@@ -29,7 +29,14 @@ import { useAppTheme } from '../../src/context/ThemeContext';
 import { useFavorites } from '../../src/context/FavoritesContext';
 import { fetchPublicEventDetail } from '../../src/api/endpoints';
 import { Agency, EventItem, FestivalArtist, TicketType } from '../../src/types';
-import { formatRupiah, formatTanggal, formatWaktu } from '../../src/utils/formatters';
+import {
+  effectiveTicketPrice,
+  formatEventSchedule,
+  formatRupiah,
+  formatWaktu,
+  isEventPast,
+  isEventPurchasable,
+} from '../../src/utils/formatters';
 import { Badge } from '../../src/components/common/Badge';
 import { Button } from '../../src/components/common/Button';
 import { FALLBACK_EVENT_IMAGE } from '../../src/constants/Config';
@@ -81,8 +88,6 @@ export default function EventDetailScreen() {
           const msg = err?.message || 'Gagal memuat detail event.';
           if (err?.status === 404 || msg.includes('Event not found')) {
             setError(`Event dengan ID '${id}' tidak ditemukan dalam katalog publik TicketWave. Event mungkin telah berakhir atau belum dipublikasikan.`);
-          } else if (err?.status === 500) {
-            setError(`Kesalahan Server (HTTP 500): Terjadi kendala pemrosesan data event pada backend (BLOCKED-BY-BACKEND). Pesan: ${msg}`);
           } else {
             setError(msg);
           }
@@ -100,20 +105,16 @@ export default function EventDetailScreen() {
   }, [id, retryKey]);
 
   const selectedTicket = ticketTypes.find((t) => t.id === selectedTicketId) || null;
+  const eventPast = isEventPast(event);
+  const purchasable = isEventPurchasable(event);
 
-  const getEffectivePrice = (t: TicketType) => {
-    if (typeof t.final_price === 'number') return t.final_price;
-    if (t.active_phase && t.active_phase.discount_percent) {
-      const base = Number(t.base_price || 0);
-      return Math.round(base * (1 - t.active_phase.discount_percent / 100));
-    }
-    return Number(t.base_price || 0);
-  };
+  const getEffectivePrice = (t: TicketType) => effectiveTicketPrice(t);
 
   const availableStock = (t: TicketType) =>
     t.stock_available ?? Math.max(0, (t.quota || 0) - (t.sold_count || 0));
 
   const handleSelectTicket = (t: TicketType) => {
+    if (!purchasable) return;
     const avail = availableStock(t);
     if (avail <= 0) return;
     setSelectedTicketId(t.id);
@@ -121,7 +122,7 @@ export default function EventDetailScreen() {
   };
 
   const handleQuantity = (delta: number) => {
-    if (!selectedTicket) return;
+    if (!selectedTicket || !purchasable) return;
     const avail = availableStock(selectedTicket);
     const maxAllowed = Math.min(avail, 10);
     const next = quantity + delta;
@@ -131,6 +132,15 @@ export default function EventDetailScreen() {
   };
 
   const handleProceedCheckout = () => {
+    if (!purchasable) {
+      Alert.alert(
+        'Penjualan Ditutup',
+        eventPast
+          ? 'Tanggal acara sudah terlewati sehingga pembelian tiket tidak tersedia.'
+          : 'Penjualan tiket untuk event ini sedang tidak aktif.'
+      );
+      return;
+    }
     if (!selectedTicket || quantity <= 0) {
       Alert.alert('Peringatan', 'Pilih kategori tiket dan tentukan jumlah tiket.');
       return;
@@ -141,6 +151,8 @@ export default function EventDetailScreen() {
       ticketTypeId: selectedTicket.id,
       quantity,
       eventName: event?.name,
+      eventType: event?.event_type,
+      daysCount: event?.days_count,
       ticketName: selectedTicket.name,
       unitPrice: getEffectivePrice(selectedTicket),
       posterUrl: event?.poster_url || event?.banner_url,
@@ -200,6 +212,9 @@ export default function EventDetailScreen() {
 
   const isFav = isEventFavorite(event.id);
   const heroImage = event.banner_url || event.poster_url || FALLBACK_EVENT_IMAGE;
+  const sortedLineup = [...lineup].sort(
+    (a, b) => (a.day_number || a.day || 1) - (b.day_number || b.day || 1)
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -262,9 +277,11 @@ export default function EventDetailScreen() {
             <View style={styles.infoRow}>
               <Calendar size={18} color={brand.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Tanggal</Text>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>
+                  {event.event_type === 'festival' ? 'Durasi Festival' : 'Tanggal'}
+                </Text>
                 <Text style={[styles.infoVal, { color: colors.text }]}>
-                  {formatTanggal(event.event_date)}
+                  {formatEventSchedule(event, { includeTime: false })}
                 </Text>
               </View>
             </View>
@@ -299,14 +316,14 @@ export default function EventDetailScreen() {
                 <Sparkles size={18} color={brand.purple} />
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Lineup Festival</Text>
               </View>
-              {lineup.length > 0 ? (
+              {sortedLineup.length > 0 ? (
                 <View style={[styles.lineupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  {lineup.map((item, idx) => (
+                  {sortedLineup.map((item, idx) => (
                     <View
-                      key={idx}
+                      key={item.id || idx}
                       style={[
                         styles.lineupItem,
-                        idx < lineup.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                        idx < sortedLineup.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
                       ]}
                     >
                       <View style={[styles.dayPill, { backgroundColor: brand.purpleSoft }]}>
@@ -378,7 +395,7 @@ export default function EventDetailScreen() {
                   <TouchableOpacity
                     key={ticket.id}
                     activeOpacity={0.88}
-                    disabled={isSoldOut}
+                    disabled={isSoldOut || !purchasable}
                     onPress={() => handleSelectTicket(ticket)}
                     style={[
                       styles.ticketCard,
@@ -392,7 +409,7 @@ export default function EventDetailScreen() {
                         borderWidth: 2,
                         backgroundColor: isDark ? 'rgba(0,128,242,0.1)' : 'rgba(0,128,242,0.04)',
                       },
-                      isSoldOut && { opacity: 0.5 },
+                      (isSoldOut || !purchasable) && { opacity: 0.55 },
                     ]}
                   >
                     <View style={styles.ticketCardHeader}>
@@ -467,7 +484,32 @@ export default function EventDetailScreen() {
       </ScrollView>
 
       {/* Floating Bottom Bar */}
-      {selectedTicket && availableStock(selectedTicket) > 0 && (
+      {!purchasable ? (
+        <View
+          style={[
+            styles.bottomBar,
+            {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, 12),
+            },
+          ]}
+        >
+          <View>
+            <Text style={[styles.bottomBarLabel, { color: colors.textMuted }]}>Status Penjualan</Text>
+            <Text style={[styles.bottomBarTotal, { color: colors.textSecondary, fontSize: 14 }]}>
+              {eventPast ? 'Acara Sudah Selesai' : 'Penjualan Tiket Ditutup'}
+            </Text>
+          </View>
+          <Button
+            title={eventPast ? 'Acara Selesai' : 'Penjualan Ditutup'}
+            onPress={handleProceedCheckout}
+            disabled
+            variant="secondary"
+            size="md"
+          />
+        </View>
+      ) : selectedTicket && availableStock(selectedTicket) > 0 ? (
         <View
           style={[
             styles.bottomBar,
@@ -495,7 +537,7 @@ export default function EventDetailScreen() {
             style={{ paddingHorizontal: 18 }}
           />
         </View>
-      )}
+      ) : null}
     </View>
   );
 }

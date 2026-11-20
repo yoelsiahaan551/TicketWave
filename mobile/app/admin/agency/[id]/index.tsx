@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Building2,
   Calendar,
@@ -39,6 +40,28 @@ export default function AdminAgencyDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  const onRefresh = useCallback(() => {
+    if (!id) return;
+    setRefreshing(true);
+    fetchAdminAgencyDetail(id)
+      .then((res) => {
+        if (res.data) {
+          setAgency(res.data);
+          setError(null);
+        } else {
+          setError('Data agency tidak ditemukan.');
+        }
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Gagal memuat detail agency.');
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -61,6 +84,7 @@ export default function AdminAgencyDetailScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -71,28 +95,43 @@ export default function AdminAgencyDetailScreen() {
     };
   }, [id]);
 
-  const onRefresh = () => {
-    if (!id) return;
-    setRefreshing(true);
-    fetchAdminAgencyDetail(id)
-      .then((res) => {
-        if (res.data) {
-          setAgency(res.data);
-          setError(null);
-        } else {
-          setError('Data agency tidak ditemukan.');
-        }
-      })
-      .catch((err: any) => {
-        setError(err?.message || 'Gagal memuat detail agency.');
-      })
-      .finally(() => {
-        setRefreshing(false);
-      });
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      onRefresh();
+    }, [onRefresh])
+  );
+
+  const performDelete = async () => {
+    if (!agency) return;
+    setActionError(null);
+    try {
+      await deleteAdminAgency(agency.id);
+      router.replace('/admin/agencies' as any);
+    } catch (err: any) {
+      const msg = err?.message || 'Agency tidak dapat dihapus.';
+      setActionError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Gagal Menghapus', msg);
+      }
+    }
   };
 
   const handleDelete = () => {
     if (!agency) return;
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Apakah Anda yakin ingin menghapus agency "${agency.name}"? Agency yang memiliki event terkait tidak dapat dihapus.`
+        )
+      ) {
+        return;
+      }
+      performDelete();
+      return;
+    }
+
     Alert.alert(
       'Hapus Agency',
       `Apakah Anda yakin ingin menghapus agency "${agency.name}"? Agency yang memiliki event terkait tidak dapat dihapus.`,
@@ -101,14 +140,7 @@ export default function AdminAgencyDetailScreen() {
         {
           text: 'Hapus',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAdminAgency(agency.id);
-              router.replace('/admin/agencies' as any);
-            } catch (err: any) {
-              Alert.alert('Gagal Menghapus', err?.message || 'Agency tidak dapat dihapus.');
-            }
-          },
+          onPress: () => performDelete(),
         },
       ]
     );
@@ -239,6 +271,11 @@ export default function AdminAgencyDetailScreen() {
             </View>
 
             {/* Actions */}
+            {actionError && (
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: brand.dangerSoft, borderWidth: 1, borderColor: brand.danger }}>
+                <Text style={{ color: brand.danger, fontSize: 12, fontWeight: '700' }}>{actionError}</Text>
+              </View>
+            )}
             <View style={{ marginTop: 20, gap: 10 }}>
               <Button
                 title="Edit Profil Agency"

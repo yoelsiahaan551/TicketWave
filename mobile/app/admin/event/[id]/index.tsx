@@ -1,19 +1,22 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
+  Building2,
   Calendar,
   MapPin,
   Pencil,
+  Sparkles,
   Trash2,
   Upload,
 } from 'lucide-react-native';
@@ -26,7 +29,7 @@ import {
   uploadEventMedia,
 } from '@/src/api/endpoints';
 import { EventItem, EventStatus } from '@/src/types';
-import { formatRupiah, formatTanggal } from '@/src/utils/formatters';
+import { formatEventSchedule, formatRupiah } from '@/src/utils/formatters';
 import { Header } from '@/src/components/common/Header';
 import { Badge } from '@/src/components/common/Badge';
 import { Button } from '@/src/components/common/Button';
@@ -51,6 +54,8 @@ export default function AdminEventDetailScreen() {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const refreshDetail = useCallback(async () => {
     if (!id) return;
@@ -78,6 +83,7 @@ export default function AdminEventDetailScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
         }
       });
@@ -87,11 +93,19 @@ export default function AdminEventDetailScreen() {
     };
   }, [id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      refreshDetail();
+    }, [refreshDetail])
+  );
+
   const handleUploadMedia = async (type: 'poster' | 'banner') => {
     if (!id) return;
+    setFeedback(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Izin Ditolak', 'Aplikasi memerlukan izin akses galeri foto untuk mengunggah gambar.');
+      setFeedback({ type: 'error', text: 'Aplikasi memerlukan izin akses galeri foto untuk mengunggah gambar.' });
       return;
     }
 
@@ -105,10 +119,14 @@ export default function AdminEventDetailScreen() {
     setUploading(true);
     try {
       await uploadEventMedia(id, type, picked.assets[0].uri);
-      Alert.alert('Sukses', `${type === 'poster' ? 'Poster' : 'Banner'} berhasil diunggah.`);
+      const msg = `${type === 'poster' ? 'Poster' : 'Banner'} berhasil diunggah.`;
+      setFeedback({ type: 'success', text: msg });
+      if (Platform.OS !== 'web') Alert.alert('Sukses', msg);
       await refreshDetail();
     } catch (err: any) {
-      Alert.alert('Gagal Upload', err?.message || `Gagal mengunggah ${type}.`);
+      const msg = `Gagal mengunggah ${type} (ISSUE-03 Cloudinary Backend): ${err?.message || 'HTTP 500'}`;
+      setFeedback({ type: 'error', text: msg });
+      if (Platform.OS !== 'web') Alert.alert('Gagal Upload', msg);
     } finally {
       setUploading(false);
     }
@@ -116,17 +134,46 @@ export default function AdminEventDetailScreen() {
 
   const handleStatusChange = async (st: EventStatus) => {
     if (!id) return;
+    setFeedback(null);
     try {
       await updateAdminEventStatus(id, st);
-      Alert.alert('Status Diperbarui', `Status event diubah menjadi "${st}".`);
+      const msg = `Status event diubah menjadi "${st}".`;
+      setFeedback({ type: 'success', text: msg });
+      if (Platform.OS !== 'web') Alert.alert('Status Diperbarui', msg);
       await refreshDetail();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Gagal mengubah status.');
+      const msg = err?.message || 'Gagal mengubah status.';
+      setFeedback({ type: 'error', text: msg });
+      if (Platform.OS !== 'web') Alert.alert('Error', msg);
+    }
+  };
+
+  const performDelete = async () => {
+    if (!event) return;
+    setFeedback(null);
+    try {
+      await deleteAdminEvent(event.id);
+      router.replace('/admin/events' as any);
+    } catch (err: any) {
+      const msg = err?.message || 'Event yang sudah terjual tidak dapat dihapus.';
+      setFeedback({ type: 'error', text: msg });
+      if (Platform.OS !== 'web') Alert.alert('Gagal', msg);
     }
   };
 
   const handleDelete = () => {
     if (!event) return;
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(`Hapus event "${event.name}" secara permanen?`)
+      ) {
+        return;
+      }
+      performDelete();
+      return;
+    }
+
     Alert.alert(
       'Hapus Event',
       `Hapus event "${event.name}" secara permanen?`,
@@ -135,14 +182,7 @@ export default function AdminEventDetailScreen() {
         {
           text: 'Hapus',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAdminEvent(event.id);
-              router.replace('/admin/events' as any);
-            } catch (err: any) {
-              Alert.alert('Gagal', err?.message || 'Event yang sudah terjual tidak dapat dihapus.');
-            }
-          },
+          onPress: () => performDelete(),
         },
       ]
     );
@@ -191,6 +231,30 @@ export default function AdminEventDetailScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {feedback && (
+          <View
+            style={[
+              styles.feedbackBox,
+              {
+                backgroundColor: feedback.type === 'success' ? brand.successSoft : brand.dangerSoft,
+                borderColor: feedback.type === 'success' ? brand.success : brand.danger,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                Typography.caption,
+                {
+                  color: feedback.type === 'success' ? brand.success : brand.danger,
+                  fontWeight: '700',
+                },
+              ]}
+            >
+              {feedback.text}
+            </Text>
+          </View>
+        )}
+
         {/* Media Preview & Upload */}
         <View style={styles.mediaCard}>
           <Image
@@ -235,7 +299,7 @@ export default function AdminEventDetailScreen() {
           <View style={styles.metaRow}>
             <Calendar size={15} color={colors.textMuted} />
             <Text style={[Typography.caption, styles.metaText, { color: colors.textSecondary }]}>
-              {event.event_date ? formatTanggal(event.event_date) : `Festival ${event.days_count} Hari`}
+              {formatEventSchedule(event, { includeTime: true })}
             </Text>
           </View>
           <View style={styles.metaRow}>
@@ -244,7 +308,46 @@ export default function AdminEventDetailScreen() {
               {event.venue}, {event.city}
             </Text>
           </View>
+          {event.agency?.name && (
+            <View style={styles.metaRow}>
+              <Building2 size={15} color={colors.textMuted} />
+              <Text style={[Typography.caption, styles.metaText, { color: colors.textSecondary }]}>
+                Promotor: {event.agency.name}
+              </Text>
+            </View>
+          )}
+          {event.description && (
+            <Text style={[Typography.caption, { color: colors.textSecondary, marginTop: 8, lineHeight: 18 }]}>
+              {event.description}
+            </Text>
+          )}
         </View>
+
+        {/* Festival Lineup (if festival) */}
+        {event.event_type === 'festival' && (event.festival_artists || []).length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Sparkles size={16} color={brand.purple} />
+              <Text style={[Typography.h3, { color: colors.text }]}>
+                Lineup Festival ({event.festival_artists?.length} Artis)
+              </Text>
+            </View>
+            {[...(event.festival_artists || [])]
+              .sort((a, b) => (a.day_number || 1) - (b.day_number || 1))
+              .map((fa, idx) => (
+                <View key={fa.id || idx} style={[styles.lineupRow, { borderBottomColor: colors.border }]}>
+                  <View style={[styles.dayBadge, { backgroundColor: brand.purpleSoft }]}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: brand.purple }}>
+                      Day {fa.day_number}
+                    </Text>
+                  </View>
+                  <Text style={[Typography.body, { color: colors.text, fontWeight: '600' }]}>
+                    {fa.artist_name}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        )}
 
         {/* Status Transition */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -316,7 +419,17 @@ export default function AdminEventDetailScreen() {
                   </Text>
                   <Text style={[Typography.caption, styles.ttPhases, { color: brand.primary, fontWeight: '700' }]}>
                     {tt.phases?.length || 0} fase harga terdaftar
+                    {tt.active_phase ? ` • Aktif: ${tt.active_phase.phase_name} (-${tt.active_phase.discount_percent}%)` : ''}
                   </Text>
+                  {tt.phases && tt.phases.length > 0 && (
+                    <View style={{ marginTop: 4, gap: 2 }}>
+                      {tt.phases.map((p) => (
+                        <Text key={p.id} style={{ fontSize: 11, color: colors.textMuted }}>
+                          • {p.phase_name.toUpperCase()} ({p.start_date} s/d {p.end_date}) — Diskon {p.discount_percent}%
+                        </Text>
+                      ))}
+                    </View>
+                  )}
                 </View>
                 <Button
                   title="Fase"
@@ -445,5 +558,23 @@ const styles = StyleSheet.create({
   },
   ttPhases: {
     marginTop: 3,
+  },
+  feedbackBox: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  lineupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  dayBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
 });

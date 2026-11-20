@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import QRCode from 'qrcode';
 import Svg, { Rect, Path } from 'react-native-svg';
 import * as Clipboard from 'expo-clipboard';
-import { AlertTriangle, Calendar, Copy, MapPin, ShieldCheck, X } from 'lucide-react-native';
+import { AlertTriangle, Calendar, Check, Copy, MapPin, ShieldCheck, X } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { TicketItem } from '../../types';
-import { formatTanggal, formatWaktu } from '../../utils/formatters';
+import {
+  formatEventSchedule,
+  formatWibDateTime,
+  isTicketQrEligible,
+} from '../../utils/formatters';
 import { Badge } from '../common/Badge';
 
 interface QRCodeModalProps {
@@ -49,16 +53,20 @@ function QrSvg({ value, size = 200 }: { value: string; size?: number }) {
 
 export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
   const { colors, brand } = useAppTheme();
+  const [copiedToken, setCopiedToken] = useState(false);
 
   if (!ticket) return null;
 
-  const isPaid = ticket.booking_status === 'paid';
-  const isValid = isPaid && (ticket.status === 'valid' || ticket.status === 'aktif');
+  const isValid = isTicketQrEligible(ticket.booking_status, ticket);
 
   const handleCopyToken = async () => {
-    if (!isValid) return;
-    await Clipboard.setStringAsync(ticket.qr_token || ticket.ticket_code);
-    Alert.alert('Disalin', 'Kode QR / Token tiket disalin ke clipboard.');
+    if (!isValid || !ticket.qr_token) return;
+    await Clipboard.setStringAsync(ticket.qr_token);
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2000);
+    if (Platform.OS !== 'web') {
+      Alert.alert('Disalin', 'Token QR tiket disalin ke clipboard.');
+    }
   };
 
   return (
@@ -96,8 +104,7 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
             <View style={styles.metaRow}>
               <Calendar size={14} color={brand.primary} />
               <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                {formatTanggal(ticket.event_date)}
-                {ticket.event_time ? ` • ${formatWaktu(ticket.event_time)}` : ''}
+                {formatEventSchedule(ticket, { includeTime: true })}
               </Text>
             </View>
             <View style={styles.metaRow}>
@@ -116,15 +123,21 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
           {isValid ? (
             <View style={styles.qrWrapper}>
               <View style={styles.qrBox}>
-                <QrSvg value={ticket.qr_token || ticket.ticket_code} size={200} />
+                <QrSvg value={ticket.qr_token} size={200} />
               </View>
               <Text style={[styles.ticketCode, { color: colors.text }]}>
                 {ticket.ticket_code}
               </Text>
               <TouchableOpacity onPress={handleCopyToken} style={styles.copyBtn}>
-                <Copy size={14} color={brand.primary} />
-                <Text style={[styles.copyText, { color: brand.primary }]}>
-                  Salin QR Token ({ticket.qr_token?.slice(0, 12)}...)
+                {copiedToken ? (
+                  <Check size={14} color="#10B981" />
+                ) : (
+                  <Copy size={14} color={brand.primary} />
+                )}
+                <Text style={[styles.copyText, { color: copiedToken ? '#10B981' : brand.primary }]}>
+                  {copiedToken
+                    ? 'Token QR disalin'
+                    : `Salin Token QR (${ticket.qr_token.slice(0, 12)}...)`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -132,10 +145,14 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
             <View style={[styles.inactiveCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
               <AlertTriangle size={36} color="#EF4444" />
               <Text style={[styles.inactiveTitle, { color: colors.text }]}>
-                QR Gate Tidak Tersedia
+                {ticket.status === 'used' ? 'Tiket Sudah Digunakan' : 'QR Gate Tidak Tersedia'}
               </Text>
               <Text style={[styles.inactiveSubtitle, { color: colors.textSecondary }]}>
-                {ticket.booking_status === 'cancelled'
+                {ticket.status === 'used'
+                  ? `Tiket ini sudah digunakan untuk check-in${
+                      ticket.checked_in_at ? ` pada ${formatWibDateTime(ticket.checked_in_at)}` : ''
+                    }.`
+                  : ticket.booking_status === 'cancelled'
                   ? 'Pesanan ini telah dibatalkan sehingga e-ticket / QR Gate dinonaktifkan.'
                   : ticket.booking_status === 'pending_payment'
                   ? 'Pesanan belum dibayar. Selesaikan pembayaran untuk mengaktifkan QR Gate.'

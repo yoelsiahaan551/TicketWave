@@ -1,13 +1,33 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { CalendarDays, Home, Receipt, Ticket, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../src/context/ThemeContext';
+import { useAuth } from '../../src/context/AuthContext';
 
 export default function TabLayout() {
+  const router = useRouter();
   const { colors, brand, isDark } = useAppTheme();
+  const { isAuthenticated, isOfficer, loading } = useAuth();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && isOfficer) {
+      router.replace('/officer' as any);
+    }
+  }, [loading, isAuthenticated, isOfficer, router]);
+
+  if (!loading && isAuthenticated && isOfficer) {
+    return (
+      <View style={[styles.redirectWrap, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={brand.primary} />
+        <Text style={[styles.redirectText, { color: colors.textSecondary }]}>
+          Mengarahkan ke Portal Petugas (Officer)...
+        </Text>
+      </View>
+    );
+  }
 
   const bottomInset = insets.bottom > 0 ? insets.bottom : Platform.OS === 'ios' ? 24 : 10;
   const tabHeight = 60 + bottomInset;
@@ -99,6 +119,18 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  redirectWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  redirectText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   iconWrapper: {
     width: 38,
     height: 28,

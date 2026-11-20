@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import {
   AlertCircle,
@@ -25,6 +25,7 @@ import {
   Phone,
   QrCode,
   RefreshCw,
+  ShieldAlert,
   User,
   XCircle,
 } from 'lucide-react-native';
@@ -39,11 +40,13 @@ import {
 import { saveBookingEntry } from '../../src/utils/storage';
 import { BookingDetailResponse, TicketItem } from '../../src/types';
 import {
+  formatEventSchedule,
   formatRupiah,
-  formatTanggal,
-  formatWaktu,
+  formatWibDateTime,
   getStatusLabel,
   getTicketDisplayStatus,
+  isTicketQrEligible,
+  normalizeUtcIso,
 } from '../../src/utils/formatters';
 import {
   canUserSyncBookingPayment,
@@ -69,7 +72,7 @@ export default function OrderDetailScreen() {
   }>();
   const router = useRouter();
   const { colors, brand, isDark } = useAppTheme();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isOfficer, loading: authLoading, logout } = useAuth();
 
   const [detail, setDetail] = useState<BookingDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,8 +84,10 @@ export default function OrderDetailScreen() {
     useState<PaymentFeedbackState>(null);
   const [copied, setCopied] = useState(false);
   const [selectedQR, setSelectedQR] = useState<TicketItem | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const syncLockRef = useRef(false);
+  const hasLoadedOnceRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
 
   const initialFromPaymentFeedback: PaymentFeedbackState = useMemo(() => {
@@ -152,7 +157,7 @@ export default function OrderDetailScreen() {
 
   useEffect(() => {
     let ignore = false;
-    if (!id) return;
+    if (!id || (isAuthenticated && isOfficer)) return;
 
     fetchBookingDetail(id)
       .then(async (res) => {
@@ -169,6 +174,7 @@ export default function OrderDetailScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedOnceRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -177,7 +183,53 @@ export default function OrderDetailScreen() {
     return () => {
       ignore = true;
     };
-  }, [id, persistBookingFromResponse]);
+  }, [id, isAuthenticated, isOfficer, persistBookingFromResponse]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedOnceRef.current || (isAuthenticated && isOfficer)) return;
+      refreshOrder();
+    }, [isAuthenticated, isOfficer, refreshOrder])
+  );
+
+  const activeBookingStatus = detail?.booking?.status;
+  const activeBookingExpiredAt = detail?.booking?.expired_at;
+
+  // Live 15-minute reservation countdown tick while booking is pending_payment
+  useEffect(() => {
+    if (activeBookingStatus !== 'pending_payment' || !activeBookingExpiredAt) {
+      return;
+    }
+    const iso = normalizeUtcIso(activeBookingExpiredAt);
+    const expiresMs = iso ? Date.parse(iso) : NaN;
+    if (!Number.isFinite(expiresMs)) {
+      return;
+    }
+
+    const immediate = setTimeout(() => setNowMs(Date.now()), 0);
+    const timerId = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      clearTimeout(immediate);
+      clearInterval(timerId);
+    };
+  }, [activeBookingStatus, activeBookingExpiredAt]);
+
+  const countdownText = useMemo(() => {
+    if (activeBookingStatus !== 'pending_payment' || !activeBookingExpiredAt) {
+      return null;
+    }
+    const iso = normalizeUtcIso(activeBookingExpiredAt);
+    const expiresMs = iso ? Date.parse(iso) : NaN;
+    if (!Number.isFinite(expiresMs)) return null;
+    const diffMs = expiresMs - nowMs;
+    if (diffMs <= 0) {
+      return 'Batas waktu terlewati — silakan periksa status pesanan';
+    }
+    const totalSec = Math.floor(diffMs / 1000);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, [activeBookingStatus, activeBookingExpiredAt, nowMs]);
 
   // Read-only GET refresh when returning from Android Chrome Custom Tabs / external browser.
   useEffect(() => {
@@ -235,6 +287,14 @@ export default function OrderDetailScreen() {
   const handleCancelOrder = () => {
     if (!detail?.booking?.booking_code || cancelling || syncing) return;
     if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          'Apakah Anda yakin ingin membatalkan pesanan ini? Stok tiket akan dikembalikan ke event.'
+        )
+      ) {
+        return;
+      }
       performCancel();
       return;
     }
@@ -347,6 +407,53 @@ export default function OrderDetailScreen() {
     }
   };
 
+  if (!authLoading && isAuthenticated && isOfficer) {
+    return (
+      <View style={[styles.centerWrap, { backgroundColor: colors.background }]}>
+        <Header showBack title="Detail Pesanan" />
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            backgroundColor: brand.warningSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+          }}
+        >
+          <ShieldAlert size={28} color={brand.warning} />
+        </View>
+        <Text style={[styles.errorTitle, { color: colors.text, textAlign: 'center' }]}>
+          Sesi Role Tidak Sesuai
+        </Text>
+        <Text style={[styles.errorDesc, { color: colors.textSecondary, textAlign: 'center', marginTop: 6 }]}>
+          Halaman detail pesanan dan pembayaran hanya diperuntukkan bagi akun pemilik pesanan (User). Sesi aktif Anda saat ini adalah Officer ({user?.email}).
+        </Text>
+        <Button
+          title="Masuk dengan Akun Pemilik Pesanan"
+          onPress={async () => {
+            await logout();
+            router.replace({
+              pathname: '/login',
+              params: { next: id ? `/order/${encodeURIComponent(id)}` : '/(tabs)/orders' },
+            } as any);
+          }}
+          variant="primary"
+          size="md"
+          style={{ marginTop: 16, width: '100%', maxWidth: 320 }}
+        />
+        <Button
+          title="Kembali ke Portal Petugas"
+          onPress={() => router.replace('/officer' as any)}
+          variant="outline"
+          size="md"
+          style={{ marginTop: 10, width: '100%', maxWidth: 320 }}
+        />
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -425,7 +532,7 @@ export default function OrderDetailScreen() {
             <Clock size={20} color="#D97706" />
             <View style={{ flex: 1 }}>
               <Text style={[styles.statusBannerTitle, { color: isDark ? '#FBBF24' : '#92400E' }]}>
-                Menunggu Pembayaran
+                Menunggu Pembayaran{countdownText ? ` • ${countdownText}` : ''}
               </Text>
               <Text style={[styles.statusBannerDesc, { color: isDark ? '#FDE68A' : '#78350F' }]}>
                 Harap selesaikan pembayaran melalui Midtrans Sandbox sebelum batas waktu berakhir agar reservasi tiket Anda tidak hangus.
@@ -629,14 +736,12 @@ export default function OrderDetailScreen() {
           </Text>
 
           <View style={styles.metaCol}>
-            {event?.event_date && (
-              <View style={styles.metaRow}>
-                <CalendarDays size={14} color={brand.primary} />
-                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                  {formatTanggal(event.event_date)} {event.event_time ? `• ${formatWaktu(event.event_time)}` : ''}
-                </Text>
-              </View>
-            )}
+            <View style={styles.metaRow}>
+              <CalendarDays size={14} color={brand.primary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                {formatEventSchedule(event, { includeTime: true })}
+              </Text>
+            </View>
 
             {event?.venue && (
               <View style={styles.metaRow}>
@@ -676,7 +781,10 @@ export default function OrderDetailScreen() {
             <View style={{ gap: 10, marginTop: 10 }}>
               {tickets.map((t, idx) => {
                 const effectiveStatus = getTicketDisplayStatus(booking.status, t.status);
-                const isPaidAndValid = booking.status === 'paid' && (effectiveStatus === 'valid' || effectiveStatus === 'aktif');
+                const isPaidAndValid = isTicketQrEligible(booking.status, {
+                  status: effectiveStatus,
+                  qr_token: t.qr_token,
+                });
                 const isCancelled = booking.status === 'cancelled' || effectiveStatus === 'cancelled';
                 const statusColor = isPaidAndValid
                   ? '#10B981'
@@ -694,8 +802,13 @@ export default function OrderDetailScreen() {
                         {t.ticket_code}
                       </Text>
                       <Text style={[styles.ticketPassStatus, { color: statusColor }]}>
-                        Status: {effectiveStatus.toUpperCase()}
+                        Status: {getStatusLabel(effectiveStatus).toUpperCase()}
                       </Text>
+                      {t.status === 'used' && t.checked_in_at ? (
+                        <Text style={[styles.ticketPassStatus, { color: colors.textMuted, marginTop: 2 }]}>
+                          Check-in: {formatWibDateTime(t.checked_in_at)}
+                        </Text>
+                      ) : null}
                     </View>
 
                     {isPaidAndValid ? (
@@ -707,7 +820,10 @@ export default function OrderDetailScreen() {
                             status: effectiveStatus as any,
                             booking_code: booking.booking_code,
                             booking_status: booking.status,
+                            buyer_name: booking.buyer_name,
                             event_name: event?.name,
+                            event_type: event?.event_type,
+                            days_count: event?.days_count,
                             event_date: event?.event_date,
                             event_time: event?.event_time,
                             venue: event?.venue,

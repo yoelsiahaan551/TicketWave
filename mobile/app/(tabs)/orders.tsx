@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -165,7 +166,36 @@ export default function OrdersScreen() {
     }
   };
 
+  const performCancelOrder = async (bookingCode: string) => {
+    setLookupMessage(null);
+    try {
+      await cancelBooking(bookingCode);
+      setLookupMessage({
+        type: 'success',
+        text: `Pesanan ${bookingCode} berhasil dibatalkan.`,
+      });
+      onRefresh();
+    } catch (err: any) {
+      setLookupMessage({
+        type: 'error',
+        text: err?.message || `Gagal membatalkan pesanan ${bookingCode}.`,
+      });
+    }
+  };
+
   const handleCancelOrder = (bookingCode: string) => {
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Yakin ingin membatalkan pesanan ${bookingCode}? Kuota tiket yang direservasi akan dikembalikan ke event.`
+        )
+      ) {
+        return;
+      }
+      performCancelOrder(bookingCode);
+      return;
+    }
     Alert.alert(
       'Batalkan Pesanan',
       `Yakin ingin membatalkan pesanan ${bookingCode}? Kuota tiket yang direservasi akan dikembalikan ke event.`,
@@ -174,22 +204,7 @@ export default function OrdersScreen() {
         {
           text: 'Ya, Batalkan',
           style: 'destructive',
-          onPress: async () => {
-            setLookupMessage(null);
-            try {
-              await cancelBooking(bookingCode);
-              setLookupMessage({
-                type: 'success',
-                text: `Pesanan ${bookingCode} berhasil dibatalkan.`,
-              });
-              onRefresh();
-            } catch (err: any) {
-              setLookupMessage({
-                type: 'error',
-                text: err?.message || `Gagal membatalkan pesanan ${bookingCode}.`,
-              });
-            }
-          },
+          onPress: () => performCancelOrder(bookingCode),
         },
       ]
     );

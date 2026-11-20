@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,13 +16,17 @@ import {
   useCameraPermissions,
 } from 'expo-camera';
 import {
+  AlertTriangle,
   Camera,
   CheckCircle2,
+  Clock,
   Flashlight,
+  History,
   RotateCcw,
   ScanLine,
   Search,
   ShieldAlert,
+  ShieldCheck,
   SwitchCamera,
   Ticket,
   Volume2,
@@ -31,6 +36,12 @@ import {
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { executeCheckIn, inspectTicketCodeAsync } from '../../src/api/endpoints';
+import {
+  formatTanggalSingkat,
+  formatWibDateTime,
+  formatWibTime,
+  getOfficerStatusBadgeVariant,
+} from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Button } from '../../src/components/common/Button';
 import { Badge } from '../../src/components/common/Badge';
@@ -58,39 +69,53 @@ export default function OfficerScanScreen() {
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [recentScans, setRecentScans] = useState<any[]>([]);
+  const [inlineNotice, setInlineNotice] = useState<{
+    type: 'success' | 'error' | 'warning';
+    text: string;
+  } | null>(null);
 
   // Concurrency & debounce ref
   const lastScanTimestampRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
+  const checkInLockRef = useRef<boolean>(false);
 
-  // Perform validation on ticket code
+  // Perform validation on ticket code (MUST NOT uppercase qr_token; preserve exact case)
   const handleValidate = useCallback(
     async (targetCode?: string) => {
-      const code = (targetCode || inputCode).trim().toUpperCase();
+      const code = (targetCode ?? inputCode).trim();
       if (!code) {
-        Alert.alert('Perhatian', 'Masukkan kode tiket atau token QR.');
+        setInlineNotice({
+          type: 'warning',
+          text: 'Masukkan kode tiket atau token QR terlebih dahulu.',
+        });
         return;
       }
 
       setValidating(true);
       setResult(null);
+      setInlineNotice(null);
 
       try {
         const res = await inspectTicketCodeAsync(code);
         setResult(res);
         setRecentScans((prev) => [
-          { code, status: res.status, time: new Date().toLocaleTimeString() },
-          ...prev.filter((item) => item.code !== code).slice(0, 4),
+          {
+            code: res.ticket?.ticket_code || res.code || code,
+            rawCode: code,
+            status: res.status,
+            time: formatWibTime(new Date()),
+          },
+          ...prev
+            .filter((item) => item.rawCode !== code && item.code !== code)
+            .slice(0, 4),
         ]);
       } catch (err: any) {
         setResult({
           success: false,
           status: 'GAGAL MEMERIKSA',
           code,
-          message:
-            err?.status === 404
-              ? 'Endpoint scan belum aktif di Flask backend (/api/scan/validate - BLOCKED-BY-BACKEND).'
-              : err?.message || 'Gagal menghubungi server backend.',
+          server_verified: false,
+          message: err?.message || 'Gagal menghubungi server backend.',
         });
       } finally {
         setValidating(false);
@@ -133,13 +158,89 @@ export default function OfficerScanScreen() {
     setScannedLocked(false);
     setResult(null);
     setInputCode('');
+    setInlineNotice(null);
   };
 
-  // Confirm and execute check-in with prompt
+  const performCheckIn = async () => {
+    if ((!result?.ticket && !result?.code) || checkInLockRef.current || submittingCheckIn) {
+      return;
+    }
+    checkInLockRef.current = true;
+    setSubmittingCheckIn(true);
+    setInlineNotice(null);
+
+    try {
+      const ticketParam = result.ticket || result.code;
+      const res = await executeCheckIn(ticketParam);
+      if (res.success) {
+        const nextTicket = {
+          ...(result?.ticket || {}),
+          ...(res.ticket || {}),
+          status: 'used',
+        };
+        setResult((prev: any) => ({
+          ...prev,
+          success: true,
+          status: 'CHECK-IN SELESAI',
+          server_verified: true,
+          message: res.message || 'Check-in berhasil dikonfirmasi oleh sistem.',
+          ticket: nextTicket,
+        }));
+        setInlineNotice({
+          type: 'success',
+          text: 'Check-in tiket berhasil diverifikasi. Pengunjung diizinkan masuk.',
+        });
+        if (Platform.OS !== 'web') {
+          Alert.alert(
+            'Sukses Masuk Gate',
+            'Check-in tiket berhasil diverifikasi. Pengunjung diizinkan masuk.'
+          );
+        }
+      } else {
+        setResult((prev: any) => ({
+          ...prev,
+          ...res,
+        }));
+        setInlineNotice({
+          type: 'error',
+          text: res.message || 'Check-in ditolak sistem.',
+        });
+        if (Platform.OS !== 'web') {
+          Alert.alert('Check-In Ditolak', res.message || 'Gagal mengonfirmasi check-in.');
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Terjadi kesalahan sistem saat check-in.';
+      setInlineNotice({ type: 'error', text: msg });
+      if (Platform.OS !== 'web') {
+        Alert.alert('Gagal Check-In', msg);
+      }
+    } finally {
+      checkInLockRef.current = false;
+      setSubmittingCheckIn(false);
+    }
+  };
+
+  // Confirm and execute check-in with prompt (cross-platform web + native)
   const handleConfirmCheckInPrompt = () => {
-    if (!result?.ticket && !result?.code) return;
-    const buyer = result.ticket?.buyer_name || 'Pengunjung';
-    const code = result.code || inputCode;
+    if ((!result?.ticket && !result?.code) || checkInLockRef.current || submittingCheckIn) {
+      return;
+    }
+    const buyer = result.ticket?.buyer_name || result.ticket?.attendee_name || 'Pengunjung';
+    const code = result.ticket?.ticket_code || result.code || inputCode;
+
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Konfirmasi Check-In Tiket\n\nIzinkan check-in untuk:\n• Kode: ${code}\n• Nama: ${buyer}\n\nTiket akan ditandai SUDAH DIGUNAKAN di database backend.`
+        )
+      ) {
+        return;
+      }
+      performCheckIn();
+      return;
+    }
 
     Alert.alert(
       'Konfirmasi Check-In Tiket',
@@ -155,48 +256,6 @@ export default function OfficerScanScreen() {
     );
   };
 
-  const performCheckIn = async () => {
-    if (!result?.ticket && !result?.code) return;
-    setSubmittingCheckIn(true);
-
-    try {
-      const ticketParam = result.ticket || result.code;
-      const res = await executeCheckIn(ticketParam);
-      if (res.success) {
-        setResult((prev: any) => ({
-          ...prev,
-          status: 'CHECK-IN SELESAI',
-          message: res.message || 'Check-in berhasil dikonfirmasi oleh sistem.',
-          ticket: { ...(prev?.ticket || {}), status: 'used' },
-        }));
-        Alert.alert('Sukses Masuk Gate', 'Check-in tiket berhasil diverifikasi. Pengunjung diizinkan masuk.');
-      } else {
-        setResult((prev: any) => ({
-          ...prev,
-          ...res,
-        }));
-        Alert.alert('Check-In Ditolak', res.message || 'Gagal mengonfirmasi check-in.');
-      }
-    } catch (err: any) {
-      Alert.alert(
-        'Gagal Check-In',
-        err?.status === 404
-          ? 'Endpoint check-in belum aktif di Flask backend (/api/scan/check-in - BLOCKED-BY-BACKEND).'
-          : err?.message || 'Terjadi kesalahan sistem saat check-in.'
-      );
-    } finally {
-      setSubmittingCheckIn(false);
-    }
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    const s = String(status || '').toUpperCase();
-    if (s.includes('VALID') || s.includes('SELESAI')) return 'success';
-    if (s.includes('SUDAH') || s.includes('USED')) return 'warning';
-    if (s.includes('DIBATALKAN') || s.includes('TIDAK') || s.includes('GAGAL')) return 'danger';
-    return 'neutral';
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -206,7 +265,16 @@ export default function OfficerScanScreen() {
         rightAction={
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <TouchableOpacity
+              onPress={() => router.push('/officer/history' as any)}
+              accessibilityLabel="Riwayat check-in"
+              style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
+            >
+              <History size={16} color={brand.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={() => setTorchOn((v) => !v)}
+              accessibilityLabel="Lampu senter kamera"
               style={[
                 styles.iconBtn,
                 { backgroundColor: torchOn ? brand.primary : colors.surfaceElevated },
@@ -217,6 +285,7 @@ export default function OfficerScanScreen() {
 
             <TouchableOpacity
               onPress={() => setFacing((curr) => (curr === 'back' ? 'front' : 'back'))}
+              accessibilityLabel="Ganti kamera"
               style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
             >
               <SwitchCamera size={16} color={colors.text} />
@@ -224,6 +293,7 @@ export default function OfficerScanScreen() {
 
             <TouchableOpacity
               onPress={() => setSoundEnabled((v) => !v)}
+              accessibilityLabel="Suara notifikasi"
               style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
             >
               {soundEnabled ? (
@@ -303,7 +373,7 @@ export default function OfficerScanScreen() {
                 {/* Bottom Bar Controls inside camera */}
                 <View style={styles.cameraBottomBar}>
                   <Text style={styles.cameraMetaText}>
-                    Gate: {user?.assigned_gate || 'Utama'} • Mode: Kamera Aktif
+                    Gate: {user?.assigned_gate || 'Belum terverifikasi'} • Mode: Kamera Aktif
                   </Text>
                   {scannedLocked && (
                     <TouchableOpacity
@@ -324,23 +394,64 @@ export default function OfficerScanScreen() {
         {/* Manual Code Input Box (Fallback) */}
         <View style={[styles.inputCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[Typography.h4, styles.inputTitle, { color: colors.text }]}>
-            Input Kode Tiket Manual (Fallback)
+            Input Kode Tiket / Token QR Manual
           </Text>
           <Text style={[Typography.caption, styles.inputSub, { color: colors.textSecondary }]}>
-            Gunakan jika QR Code kotor/rusak atau kamera dinonaktifkan
+            Masukkan kode tiket (TKT-...) atau tempel token QR persis tanpa mengubah huruf besar/kecil
           </Text>
 
           <View style={styles.inputRow}>
             <View style={{ flex: 1 }}>
               <Input
-                placeholder="Contoh: TCK-XXXXXX"
+                placeholder="Contoh: TKT-XXXXXXXX atau token QR"
                 value={inputCode}
-                onChangeText={setInputCode}
-                autoCapitalize="characters"
+                onChangeText={(txt) => {
+                  setInputCode(txt);
+                  if (inlineNotice) setInlineNotice(null);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
                 leftIcon={<Ticket size={18} color={brand.primary} />}
               />
             </View>
           </View>
+
+          {inlineNotice && (
+            <View
+              style={[
+                styles.inlineNoticeBox,
+                {
+                  backgroundColor:
+                    inlineNotice.type === 'success'
+                      ? brand.successSoft
+                      : inlineNotice.type === 'warning'
+                      ? brand.warningSoft
+                      : brand.dangerSoft,
+                  borderColor:
+                    inlineNotice.type === 'success'
+                      ? brand.success
+                      : inlineNotice.type === 'warning'
+                      ? brand.warning
+                      : brand.danger,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color:
+                    inlineNotice.type === 'success'
+                      ? brand.success
+                      : inlineNotice.type === 'warning'
+                      ? brand.warning
+                      : brand.danger,
+                }}
+              >
+                {inlineNotice.text}
+              </Text>
+            </View>
+          )}
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
             <Button
@@ -351,7 +462,7 @@ export default function OfficerScanScreen() {
               style={{ flex: 1 }}
               icon={<Search size={16} color="#FFFFFF" />}
             />
-            {inputCode ? (
+            {inputCode.trim() ? (
               <Button
                 title="Buka Validator"
                 onPress={() =>
@@ -386,15 +497,33 @@ export default function OfficerScanScreen() {
             ]}
           >
             <View style={styles.resultHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={[styles.resultCode, { color: colors.text }]}>
-                  {result.code || inputCode}
+                  {result.ticket?.ticket_code || result.code || inputCode}
                 </Text>
                 <Text style={[Typography.caption, { color: colors.textSecondary, marginTop: 2 }]}>
                   Hasil verifikasi backend
                 </Text>
               </View>
-              <Badge label={result.status} variant={getStatusBadgeVariant(result.status)} />
+              <Badge label={result.status} variant={getOfficerStatusBadgeVariant(result.status)} />
+            </View>
+
+            <View style={styles.serverPillRow}>
+              {result.server_verified ? (
+                <View style={[styles.serverPill, { backgroundColor: brand.successSoft }]}>
+                  <ShieldCheck size={13} color={brand.success} />
+                  <Text style={[styles.serverPillText, { color: brand.success }]}>
+                    Diverifikasi Server Backend
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.serverPill, { backgroundColor: brand.warningSoft }]}>
+                  <AlertTriangle size={13} color={brand.warning} />
+                  <Text style={[styles.serverPillText, { color: brand.warning }]}>
+                    Belum Terkonfirmasi Server
+                  </Text>
+                </View>
+              )}
             </View>
 
             {result.message ? (
@@ -403,17 +532,52 @@ export default function OfficerScanScreen() {
               </Text>
             ) : null}
 
+            {(result.first_checked_in_at || result.first_checked_in_by) && (
+              <View style={[styles.duplicateBox, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
+                <Clock size={14} color={brand.warning} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: brand.warning }}>
+                    Riwayat Check-In Sebelumnya
+                  </Text>
+                  <Text style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>
+                    Waktu: {formatWibDateTime(result.first_checked_in_at)}
+                    {result.first_checked_in_by ? ` • Petugas: ${result.first_checked_in_by}` : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {result.ticket && (
               <View style={[styles.ticketDetails, { borderTopColor: colors.border }]}>
                 <Text style={[styles.detailRow, { color: colors.text }]}>
-                  Nama: <Text style={{ fontWeight: '700' }}>{result.ticket.buyer_name || 'Pembeli'}</Text>
+                  Nama: <Text style={{ fontWeight: '700' }}>{result.ticket.buyer_name || result.ticket.attendee_name || 'Pembeli'}</Text>
                 </Text>
+                {result.ticket.booking_code && (
+                  <Text style={[styles.detailRow, { color: colors.text }]}>
+                    Booking: <Text style={{ fontWeight: '700' }}>{result.ticket.booking_code}</Text>
+                  </Text>
+                )}
                 <Text style={[styles.detailRow, { color: colors.text }]}>
                   Event: <Text style={{ fontWeight: '700' }}>{result.ticket.event_name || '-'}</Text>
                 </Text>
                 <Text style={[styles.detailRow, { color: colors.text }]}>
-                  Kategori: <Text style={{ fontWeight: '700' }}>{result.ticket.ticket_type_name || '-'}</Text>
+                  Kategori: <Text style={{ fontWeight: '700' }}>{result.ticket.ticket_type_name || result.ticket.ticket_type || '-'}</Text>
                 </Text>
+                {result.ticket.event_date && (
+                  <Text style={[styles.detailRow, { color: colors.text }]}>
+                    Tanggal: <Text style={{ fontWeight: '700' }}>{formatTanggalSingkat(result.ticket.event_date)}</Text>
+                  </Text>
+                )}
+                {result.ticket.venue && (
+                  <Text style={[styles.detailRow, { color: colors.text }]}>
+                    Venue: <Text style={{ fontWeight: '700' }}>{result.ticket.venue}</Text>
+                  </Text>
+                )}
+                {result.ticket.checked_in_at && result.status === 'CHECK-IN SELESAI' && (
+                  <Text style={[styles.detailRow, { color: brand.success }]}>
+                    Waktu Check-In: <Text style={{ fontWeight: '700' }}>{formatWibDateTime(result.ticket.checked_in_at)}</Text>
+                  </Text>
+                )}
               </View>
             )}
 
@@ -454,8 +618,9 @@ export default function OfficerScanScreen() {
                 key={idx}
                 activeOpacity={0.7}
                 onPress={() => {
-                  setInputCode(item.code);
-                  handleValidate(item.code);
+                  const target = item.rawCode || item.code;
+                  setInputCode(target);
+                  handleValidate(target);
                 }}
                 style={[
                   styles.recentItem,
@@ -466,7 +631,7 @@ export default function OfficerScanScreen() {
                   <Text style={[styles.recentCode, { color: colors.text }]}>{item.code}</Text>
                   <Text style={[Typography.caption, { color: colors.textMuted }]}>{item.time}</Text>
                 </View>
-                <Badge label={item.status} variant={getStatusBadgeVariant(item.status)} />
+                <Badge label={item.status} variant={getOfficerStatusBadgeVariant(item.status)} />
               </TouchableOpacity>
             ))}
           </View>
@@ -671,7 +836,39 @@ const styles = StyleSheet.create({
   resultMsg: {
     fontSize: 12,
     lineHeight: 18,
+    marginTop: 6,
+  },
+  inlineNoticeBox: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  serverPillRow: {
+    flexDirection: 'row',
     marginTop: 4,
+    marginBottom: 4,
+  },
+  serverPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  serverPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  duplicateBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
   },
   ticketDetails: {
     marginTop: 12,

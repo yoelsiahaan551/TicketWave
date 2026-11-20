@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { RefreshCw, Search, Ticket } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { fetchBookingDetail } from '../../src/api/endpoints';
@@ -45,6 +45,7 @@ export default function TicketsScreen() {
   const [lookupError, setLookupError] = useState<string | null>(null);
 
   const [selectedTicket, setSelectedTicket] = useState<TicketItem | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchTickets = useCallback(async (): Promise<TicketItem[]> => {
     const entries = await getSavedBookingEntries();
@@ -70,6 +71,9 @@ export default function TicketsScreen() {
             recipient_email: booking.recipient_email || booking.buyer_email,
             event_id: event?.id,
             event_name: event?.name || 'Event TicketWave',
+            event_type: event?.event_type || null,
+            days_count: event?.days_count ?? null,
+            poster_url: event?.poster_url || event?.banner_url || null,
             artist_name:
               event?.artist_name ||
               (event?.event_type === 'festival'
@@ -104,6 +108,7 @@ export default function TicketsScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -113,6 +118,21 @@ export default function TicketsScreen() {
       ignore = true;
     };
   }, [fetchTickets]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      let active = true;
+      fetchTickets()
+        .then((items) => {
+          if (active) setTickets(items);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [fetchTickets])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

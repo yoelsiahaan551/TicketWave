@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Building2,
+  Eye,
   Mail,
   MapPin,
   Pencil,
@@ -38,6 +40,24 @@ export default function AdminAgenciesScreen() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  const loadAgencies = useCallback(async () => {
+    try {
+      const res = await fetchAdminAgencies({
+        search: search.trim() || undefined,
+        page: 1,
+        per_page: 50,
+      });
+      setAgencies(res.data?.items || []);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat daftar agency.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [search]);
 
   useEffect(() => {
     let ignore = false;
@@ -49,15 +69,18 @@ export default function AdminAgenciesScreen() {
       .then((res) => {
         if (!ignore) {
           setAgencies(res.data?.items || []);
+          setError(null);
         }
       })
-      .catch(() => {
+      .catch((err: any) => {
         if (!ignore) {
           setAgencies([]);
+          setError(err?.message || 'Gagal memuat daftar agency.');
         }
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -68,25 +91,46 @@ export default function AdminAgenciesScreen() {
     };
   }, [search]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      loadAgencies();
+    }, [loadAgencies])
+  );
+
   const onRefresh = () => {
     setRefreshing(true);
-    fetchAdminAgencies({
-      search: search.trim() || undefined,
-      page: 1,
-      per_page: 50,
-    })
-      .then((res) => {
-        setAgencies(res.data?.items || []);
-      })
-      .catch(() => {
-        setAgencies([]);
-      })
-      .finally(() => {
-        setRefreshing(false);
-      });
+    loadAgencies();
+  };
+
+  const performDelete = async (agency: Agency) => {
+    try {
+      await deleteAdminAgency(agency.id);
+      setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
+      setError(null);
+    } catch (err: any) {
+      const msg = err?.message || 'Agency masih memiliki event terkait.';
+      setError(msg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Gagal Menghapus', msg);
+      }
+    }
   };
 
   const handleDelete = (agency: Agency) => {
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(
+          `Hapus agency "${agency.name}"? Agency yang memiliki event terkait tidak dapat dihapus (HTTP 409).`
+        )
+      ) {
+        return;
+      }
+      performDelete(agency);
+      return;
+    }
+
     Alert.alert(
       'Hapus Agency',
       `Hapus agency "${agency.name}"? Agency yang memiliki event terkait tidak dapat dihapus (HTTP 409).`,
@@ -95,14 +139,7 @@ export default function AdminAgenciesScreen() {
         {
           text: 'Hapus',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAdminAgency(agency.id);
-              setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
-            } catch (err: any) {
-              Alert.alert('Gagal Menghapus', err?.message || 'Agency masih memiliki event terkait.');
-            }
-          },
+          onPress: () => performDelete(agency),
         },
       ]
     );
@@ -133,6 +170,14 @@ export default function AdminAgenciesScreen() {
           containerStyle={{ marginBottom: 0 }}
         />
       </View>
+
+      {error && (
+        <View style={[styles.errorBanner, { backgroundColor: brand.dangerSoft, borderColor: brand.danger }]}>
+          <Text style={[Typography.caption, { color: brand.danger, fontWeight: '700' }]}>
+            {error}
+          </Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loadingList}>
@@ -168,7 +213,11 @@ export default function AdminAgenciesScreen() {
           }
           renderItem={({ item }) => (
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={styles.cardHeader}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => router.push(`/admin/agency/${item.id}` as any)}
+                style={styles.cardHeader}
+              >
                 <View style={[styles.logoBox, { backgroundColor: colors.surfaceElevated }]}>
                   {item.logo_url ? (
                     <Image source={{ uri: item.logo_url }} style={styles.logoImg} />
@@ -185,7 +234,7 @@ export default function AdminAgenciesScreen() {
                     PIC: {item.pic_name}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               <View style={styles.infoRow}>
                 <Mail size={14} color={brand.primary} />
@@ -209,6 +258,14 @@ export default function AdminAgenciesScreen() {
               )}
 
               <View style={[styles.actionsRow, { borderTopColor: colors.border }]}>
+                <TouchableOpacity
+                  onPress={() => router.push(`/admin/agency/${item.id}` as any)}
+                  style={styles.actionBtn}
+                >
+                  <Eye size={14} color={colors.textSecondary} />
+                  <Text style={[Typography.caption, { color: colors.textSecondary, fontWeight: '700' }]}>Detail</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   onPress={() => router.push(`/admin/agency/${item.id}/edit` as any)}
                   style={styles.actionBtn}
@@ -254,6 +311,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 6,
+  },
+  errorBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   loadingList: {
     padding: 16,

@@ -25,9 +25,14 @@ async function isSecureStoreAvailable(): Promise<boolean> {
   }
 }
 
-// Token Storage using Expo SecureStore (Hardware Keystore / Keychain)
+// Token Storage using Expo SecureStore (Hardware Keystore / Keychain) on native,
+// and sessionStorage/localStorage (via AsyncStorage) on web when remember=false/true.
 export async function getStoredAccessToken(): Promise<string | null> {
   try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const sessionTok = window.sessionStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      if (sessionTok) return sessionTok;
+    }
     const isSecure = await isSecureStoreAvailable();
     if (isSecure) {
       return await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
@@ -38,8 +43,16 @@ export async function getStoredAccessToken(): Promise<string | null> {
   }
 }
 
-export async function setStoredAccessToken(token: string): Promise<void> {
+export async function setStoredAccessToken(token: string, remember: boolean = true): Promise<void> {
   try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (!remember && window.sessionStorage) {
+        window.sessionStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+        await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+        return;
+      }
+      window.sessionStorage?.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    }
     const isSecure = await isSecureStoreAvailable();
     if (isSecure) {
       await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, token);
@@ -53,6 +66,10 @@ export async function setStoredAccessToken(token: string): Promise<void> {
 
 export async function getStoredRefreshToken(): Promise<string | null> {
   try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const sessionTok = window.sessionStorage?.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      if (sessionTok) return sessionTok;
+    }
     const isSecure = await isSecureStoreAvailable();
     if (isSecure) {
       return await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
@@ -63,8 +80,16 @@ export async function getStoredRefreshToken(): Promise<string | null> {
   }
 }
 
-export async function setStoredRefreshToken(token: string): Promise<void> {
+export async function setStoredRefreshToken(token: string, remember: boolean = true): Promise<void> {
   try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (!remember && window.sessionStorage) {
+        window.sessionStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+        await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        return;
+      }
+      window.sessionStorage?.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    }
     const isSecure = await isSecureStoreAvailable();
     if (isSecure) {
       await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, token);
@@ -76,8 +101,20 @@ export async function setStoredRefreshToken(token: string): Promise<void> {
   }
 }
 
+export async function isWebSessionStorageActive(): Promise<boolean> {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return Boolean(
+    window.sessionStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN) ||
+      window.sessionStorage?.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+  );
+}
+
 export async function getStoredUser(): Promise<User | null> {
   try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const sessionRaw = window.sessionStorage?.getItem(STORAGE_KEYS.USER);
+      if (sessionRaw) return JSON.parse(sessionRaw);
+    }
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.USER);
     return raw ? JSON.parse(raw) : null;
   } catch {
@@ -85,9 +122,18 @@ export async function getStoredUser(): Promise<User | null> {
   }
 }
 
-export async function setStoredUser(user: User): Promise<void> {
+export async function setStoredUser(user: User, remember: boolean = true): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    const serialized = JSON.stringify(user);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (!remember && window.sessionStorage) {
+        window.sessionStorage.setItem(STORAGE_KEYS.USER, serialized);
+        await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+        return;
+      }
+      window.sessionStorage?.removeItem(STORAGE_KEYS.USER);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.USER, serialized);
   } catch {}
 }
 
@@ -99,6 +145,12 @@ export async function clearAuthStorage(): Promise<void> {
         SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN),
         SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN),
       ]);
+    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+      window.sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+      window.sessionStorage.removeItem(STORAGE_KEYS.USER);
+      window.sessionStorage.removeItem(STORAGE_KEYS.VERIFICATION_TOKEN);
     }
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.ACCESS_TOKEN,

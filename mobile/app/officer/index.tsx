@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   AlertTriangle,
   ArrowRight,
@@ -28,6 +28,7 @@ import {
   fetchOfficerStatsAsync,
   fetchScanHistoryWithMeta,
 } from '../../src/api/endpoints';
+import { formatWibTime } from '../../src/utils/formatters';
 import { Header } from '../../src/components/common/Header';
 import { Badge } from '../../src/components/common/Badge';
 import { Skeleton } from '../../src/components/common/Skeleton';
@@ -45,6 +46,7 @@ export default function OfficerDashboardScreen() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     setStatsError(null);
@@ -55,11 +57,7 @@ export default function OfficerDashboardScreen() {
       const s = await fetchOfficerStatsAsync();
       setStats(s);
     } catch (err: any) {
-      setStatsError(
-        err?.status === 404 || err?.message?.includes('404')
-          ? 'Endpoint statistik belum aktif di backend Flask (/api/scan/stats - BLOCKED-BY-BACKEND).'
-          : err?.message || 'Gagal memuat statistik petugas.'
-      );
+      setStatsError(err?.message || 'Gagal memuat statistik petugas.');
     } finally {
       setStatsLoading(false);
     }
@@ -70,11 +68,7 @@ export default function OfficerDashboardScreen() {
       if (h.success) {
         setRecentActivities((h.data || []).slice(0, 5));
       } else {
-        setHistoryError(
-          h.error?.includes('404')
-            ? 'Endpoint riwayat belum aktif di backend Flask (/api/scan/history - BLOCKED-BY-BACKEND).'
-            : h.error || 'Gagal memuat riwayat scan.'
-        );
+        setHistoryError(h.error || 'Gagal memuat riwayat scan.');
       }
     } catch (err: any) {
       setHistoryError(err?.message || 'Gagal memuat riwayat scan.');
@@ -95,11 +89,7 @@ export default function OfficerDashboardScreen() {
       })
       .catch((err: any) => {
         if (!ignore) {
-          setStatsError(
-            err?.status === 404 || err?.message?.includes('404')
-              ? 'Endpoint statistik belum aktif di backend Flask (/api/scan/stats - BLOCKED-BY-BACKEND).'
-              : err?.message || 'Gagal memuat statistik petugas.'
-          );
+          setStatsError(err?.message || 'Gagal memuat statistik petugas.');
         }
       })
       .finally(() => {
@@ -113,11 +103,7 @@ export default function OfficerDashboardScreen() {
           setRecentActivities((h.data || []).slice(0, 5));
           setHistoryError(null);
         } else {
-          setHistoryError(
-            h.error?.includes('404')
-              ? 'Endpoint riwayat belum aktif di backend Flask (/api/scan/history - BLOCKED-BY-BACKEND).'
-              : h.error || 'Gagal memuat riwayat scan.'
-          );
+          setHistoryError(h.error || 'Gagal memuat riwayat scan.');
         }
       })
       .catch((err: any) => {
@@ -127,6 +113,7 @@ export default function OfficerDashboardScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setHistoryLoading(false);
           setRefreshing(false);
         }
@@ -136,6 +123,13 @@ export default function OfficerDashboardScreen() {
       ignore = true;
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      loadDashboard();
+    }, [loadDashboard])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -229,13 +223,13 @@ export default function OfficerDashboardScreen() {
           </View>
         </View>
 
-        {/* Backend Blocker Alert Banner (if error) */}
+        {/* Error Banner (if error) */}
         {(statsError || historyError) && (
           <View style={[styles.alertCard, { backgroundColor: brand.warningSoft, borderColor: brand.warning }]}>
             <AlertTriangle size={20} color={brand.warning} />
             <View style={{ flex: 1 }}>
               <Text style={[Typography.h4, { color: brand.warning }]}>
-                Kendala Server (BLOCKED-BY-BACKEND)
+                Gagal Memuat Data Operasional
               </Text>
               <Text style={[Typography.caption, { color: colors.textSecondary, marginTop: 2 }]}>
                 {statsError || historyError}
@@ -372,7 +366,10 @@ export default function OfficerDashboardScreen() {
                     {act.ticket_code || 'Tiket'}
                   </Text>
                   <Text style={[styles.activitySub, { color: colors.textMuted }]}>
-                    {act.event_name || 'Event'} • {act.buyer_name || 'Pembeli'}
+                    {act.event_name || 'Event'} • {act.buyer_name || act.attendee_name || 'Pembeli'}
+                    {act.scanned_at || act.timestamp
+                      ? ` • ${formatWibTime(act.scanned_at || act.timestamp)}`
+                      : ''}
                   </Text>
                 </View>
                 <Badge

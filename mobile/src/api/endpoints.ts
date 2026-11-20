@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { api } from './client';
 import {
   Agency,
@@ -11,6 +12,25 @@ import {
   TicketPhase,
   User,
 } from '../types';
+
+async function appendMediaFile(
+  formData: FormData,
+  fieldName: string,
+  fileUri: string,
+  fallbackName: string
+) {
+  const filename = fileUri.split('/').pop()?.split('?')[0] || fallbackName;
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()}` : 'image/jpeg';
+
+  if (Platform.OS === 'web' && typeof fetch === 'function') {
+    const resp = await fetch(fileUri);
+    const blob = await resp.blob();
+    formData.append(fieldName, blob, filename);
+  } else {
+    formData.append(fieldName, { uri: fileUri, name: filename, type } as any);
+  }
+}
 
 export interface PaginatedResponse<T> {
   items: T[];
@@ -142,10 +162,7 @@ export async function deleteAdminAgency(agencyId: number | string) {
 
 export async function uploadAgencyLogo(agencyId: number | string, fileUri: string) {
   const formData = new FormData();
-  const filename = fileUri.split('/').pop() || 'logo.jpg';
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : 'image/jpeg';
-  formData.append('logo', { uri: fileUri, name: filename, type } as any);
+  await appendMediaFile(formData, 'logo', fileUri, 'logo.jpg');
   return api.upload<Agency>(`/agencies/${agencyId}/logo`, formData);
 }
 
@@ -188,10 +205,7 @@ export async function uploadEventMedia(
   fileUri: string
 ) {
   const formData = new FormData();
-  const filename = fileUri.split('/').pop() || `${mediaType}.jpg`;
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : 'image/jpeg';
-  formData.append(mediaType, { uri: fileUri, name: filename, type } as any);
+  await appendMediaFile(formData, mediaType, fileUri, `${mediaType}.jpg`);
   return api.upload<EventItem>(`/events/${eventId}/${mediaType}`, formData);
 }
 
@@ -202,6 +216,10 @@ export async function fetchTicketPhases(ticketTypeId: number | string) {
     phases: TicketPhase[];
     total: number;
   }>(`/ticket-types/${ticketTypeId}/phases`);
+}
+
+export async function fetchTicketPhaseDetail(phaseId: number | string) {
+  return api.get<TicketPhase>(`/phases/${phaseId}`);
 }
 
 export async function createTicketPhase(

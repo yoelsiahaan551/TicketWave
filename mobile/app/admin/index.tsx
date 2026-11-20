@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Building2,
   Calendar,
@@ -42,6 +42,7 @@ export default function AdminDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchDashboardData = useCallback(async () => {
     const [eventsRes, agenciesRes, saleRes, draftRes] = await Promise.all([
@@ -111,6 +112,7 @@ export default function AdminDashboardScreen() {
       })
       .finally(() => {
         if (!ignore) {
+          hasLoadedRef.current = true;
           setLoading(false);
           setRefreshing(false);
         }
@@ -121,7 +123,7 @@ export default function AdminDashboardScreen() {
     };
   }, [fetchDashboardData]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchDashboardData()
       .then((data) => {
@@ -139,7 +141,14 @@ export default function AdminDashboardScreen() {
       .finally(() => {
         setRefreshing(false);
       });
-  };
+  }, [fetchDashboardData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedRef.current) return;
+      onRefresh();
+    }, [onRefresh])
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -189,7 +198,7 @@ export default function AdminDashboardScreen() {
               Total Event
             </Text>
             <Text style={[Typography.caption, styles.statSubtext, { color: colors.textMuted }]}>
-              GET /api/events
+              Seluruh status terdaftar
             </Text>
           </View>
 
@@ -261,7 +270,7 @@ export default function AdminDashboardScreen() {
                 —
               </Text>
               <Text style={[Typography.caption, { color: colors.textMuted, fontSize: 11 }]}>
-                Tidak tersedia (BLOCKED-BY-BACKEND)
+                Endpoint omzet belum tersedia di API
               </Text>
             </View>
           </View>

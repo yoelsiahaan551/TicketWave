@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Heart, Music2, Sparkles, Trash2 } from 'lucide-react-native';
+import { Heart, Music2, Trash2 } from 'lucide-react-native';
 
 import { useAppTheme } from '../src/context/ThemeContext';
 import { useFavorites } from '../src/context/FavoritesContext';
@@ -54,7 +54,7 @@ export default function FavoritesScreen() {
           {favoriteArtists.length === 0 ? (
             <View style={[styles.emptyMini, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[Typography.caption, { color: colors.textMuted, textAlign: 'center' }]}>
-                Belum ada musisi favorit yang diikuti. Tekan tombol "+ Ikuti" pada daftar musisi beranda.
+                Belum ada musisi favorit yang diikuti. Tekan tombol &quot;+ Ikuti&quot; pada daftar musisi beranda.
               </Text>
             </View>
           ) : (

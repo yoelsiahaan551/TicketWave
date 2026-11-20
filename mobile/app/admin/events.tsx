@@ -49,9 +49,8 @@ export default function AdminEventsScreen() {
 
   const [statusTarget, setStatusTarget] = useState<EventItem | null>(null);
 
-  const loadEvents = useCallback(async () => {
+  const refreshEvents = useCallback(async () => {
     try {
-      setLoading(true);
       const params: any = { page: 1, per_page: 50 };
       if (search.trim()) params.search = search.trim();
       if (statusFilter !== 'all') params.status = statusFilter;
@@ -61,21 +60,50 @@ export default function AdminEventsScreen() {
     } catch {
       setEvents([]);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, [search, statusFilter]);
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    let ignore = false;
+    const params: any = { page: 1, per_page: 50 };
+    if (search.trim()) params.search = search.trim();
+    if (statusFilter !== 'all') params.status = statusFilter;
+
+    fetchAdminEvents(params)
+      .then((res) => {
+        if (!ignore) {
+          setEvents(res.data?.items || []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setEvents([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [search, statusFilter]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    refreshEvents();
+  };
 
   const handleStatusUpdate = async (newStatus: EventStatus) => {
     if (!statusTarget) return;
     try {
       await updateAdminEventStatus(statusTarget.id, newStatus);
       setStatusTarget(null);
-      await loadEvents();
+      await refreshEvents();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Gagal memperbarui status event.');
     }
@@ -93,7 +121,7 @@ export default function AdminEventsScreen() {
           onPress: async () => {
             try {
               await deleteAdminEvent(ev.id);
-              await loadEvents();
+              await refreshEvents();
             } catch (err: any) {
               Alert.alert('Gagal Menghapus', err?.message || 'Event sudah memiliki tiket terjual.');
             }
@@ -192,10 +220,7 @@ export default function AdminEventsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadEvents();
-              }}
+              onRefresh={onRefresh}
               tintColor={brand.primary}
             />
           }

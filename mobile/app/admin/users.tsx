@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Building2, CheckCircle2, Info, Mail, Phone, RefreshCw, Shield } from 'lucide-react-native';
+import { Building2, Info, Mail, Phone, RefreshCw } from 'lucide-react-native';
 
 import { useAppTheme } from '@/src/context/ThemeContext';
 import { useAuth } from '@/src/context/AuthContext';
@@ -26,22 +26,44 @@ export default function AdminUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetchAdminAgencies({ page: 1, per_page: 50 });
-      setAgencies(res.data?.items || []);
-    } catch {
-      setAgencies([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  useEffect(() => {
+    let ignore = false;
+    fetchAdminAgencies({ page: 1, per_page: 50 })
+      .then((res) => {
+        if (!ignore) {
+          setAgencies(res.data?.items || []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAgencies([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAdminAgencies({ page: 1, per_page: 50 })
+      .then((res) => {
+        setAgencies(res.data?.items || []);
+      })
+      .catch(() => {
+        setAgencies([]);
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -51,10 +73,7 @@ export default function AdminUsersScreen() {
         subtitle="Status akun admin &amp; agency officer"
         rightAction={
           <TouchableOpacity
-            onPress={() => {
-              setRefreshing(true);
-              loadData();
-            }}
+            onPress={onRefresh}
             style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
           >
             <RefreshCw size={18} color={colors.text} />
@@ -68,10 +87,7 @@ export default function AdminUsersScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              loadData();
-            }}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }

@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   ViewStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { BrandColors, PublicThemePalette } from '../../constants/Colors';
 import { useAppTheme } from '../../context/ThemeContext';
 
 interface ButtonProps {
   title: string;
+  loadingTitle?: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'gradient';
   size?: 'sm' | 'md' | 'lg';
@@ -19,12 +20,16 @@ interface ButtonProps {
   disabled?: boolean;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
+  forcePublicTheme?: boolean;
+  accessibilityLabel?: string;
+  testID?: string;
   style?: ViewStyle;
   textStyle?: TextStyle;
 }
 
 export function Button({
   title,
+  loadingTitle,
   onPress,
   variant = 'primary',
   size = 'md',
@@ -32,73 +37,53 @@ export function Button({
   disabled = false,
   icon,
   iconPosition = 'left',
+  forcePublicTheme = false,
+  accessibilityLabel,
+  testID,
   style,
   textStyle,
 }: ButtonProps) {
-  const { colors, brand } = useAppTheme();
+  const appTheme = useAppTheme();
+  const colors = forcePublicTheme ? PublicThemePalette : appTheme.colors;
+  const brand = forcePublicTheme ? BrandColors : appTheme.brand;
 
   const isDisabled = disabled || loading;
 
   const getSizeStyle = (): {
+    minHeight: number;
     paddingVertical: number;
     paddingHorizontal: number;
     borderRadius: number;
     fontSize: number;
   } => {
     if (size === 'sm') {
-      return { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, fontSize: 12 };
+      return {
+        minHeight: 44,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 10,
+        fontSize: 13,
+      };
     }
     if (size === 'lg') {
-      return { paddingVertical: 15, paddingHorizontal: 24, borderRadius: 18, fontSize: 16 };
+      return {
+        minHeight: 50,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        fontSize: 15,
+      };
     }
-    return { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 15, fontSize: 14 };
+    return {
+      minHeight: 48,
+      paddingVertical: 11,
+      paddingHorizontal: 18,
+      borderRadius: 12,
+      fontSize: 14,
+    };
   };
 
-  const { paddingVertical, paddingHorizontal, borderRadius, fontSize } = getSizeStyle();
-
-  if (variant === 'gradient') {
-    return (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={onPress}
-        disabled={isDisabled}
-        style={[{ opacity: isDisabled ? 0.6 : 1 }, style]}
-      >
-        <LinearGradient
-          colors={[brand.blueGradientStart, brand.cyan]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[
-            styles.gradientBtn,
-            {
-              paddingVertical,
-              paddingHorizontal,
-              borderRadius,
-              shadowColor: brand.primary,
-            },
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              {icon && iconPosition === 'left' && <>{icon}</>}
-              <Text
-                style={[
-                  styles.btnText,
-                  { fontSize, color: '#FFFFFF', marginHorizontal: icon ? 6 : 0 },
-                  textStyle,
-                ]}
-              >
-                {title}
-              </Text>
-              {icon && iconPosition === 'right' && <>{icon}</>}
-            </>
-          )}
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  }
+  const { minHeight, paddingVertical, paddingHorizontal, borderRadius, fontSize } = getSizeStyle();
 
   const getVariantStyles = (): { bg: string; border: string; text: string } => {
     switch (variant) {
@@ -111,8 +96,8 @@ export function Button({
       case 'outline':
         return {
           bg: 'transparent',
-          border: brand.primary,
-          text: brand.primary,
+          border: colors.borderStrong,
+          text: colors.text,
         };
       case 'danger':
         return {
@@ -120,6 +105,7 @@ export function Button({
           border: brand.danger,
           text: '#FFFFFF',
         };
+      case 'gradient':
       case 'primary':
       default:
         return {
@@ -137,27 +123,36 @@ export function Button({
       activeOpacity={0.82}
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      accessibilityLabel={accessibilityLabel || (loading && loadingTitle ? loadingTitle : title)}
+      testID={testID}
       style={[
         styles.baseBtn,
         {
+          minHeight,
           paddingVertical,
           paddingHorizontal,
           borderRadius,
           backgroundColor: v.bg,
           borderColor: v.border,
-          borderWidth: variant === 'outline' ? 1.5 : 1,
+          borderWidth: 1,
           opacity: isDisabled ? 0.6 : 1,
-          shadowColor: variant === 'primary' ? brand.primary : 'transparent',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: variant === 'primary' ? 0.22 : 0,
-          shadowRadius: 8,
-          elevation: variant === 'primary' ? 3 : 0,
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={v.text} />
+        loadingTitle ? (
+          <>
+            <ActivityIndicator size="small" color={v.text} />
+            <Text style={[styles.btnText, { fontSize, color: v.text, marginLeft: 8 }, textStyle]}>
+              {loadingTitle}
+            </Text>
+          </>
+        ) : (
+          <ActivityIndicator size="small" color={v.text} />
+        )
       ) : (
         <>
           {icon && iconPosition === 'left' && <>{icon}</>}
@@ -183,17 +178,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gradientBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 4,
-  },
   btnText: {
-    fontWeight: '800',
-    letterSpacing: -0.2,
+    fontWeight: '700',
+    letterSpacing: -0.1,
   },
 });

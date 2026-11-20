@@ -1,28 +1,53 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CheckCircle2, Moon, Palette, RefreshCw, Server, Sun, XCircle } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { CheckCircle2, LogOut, Moon, Palette, RefreshCw, Server, Sun, XCircle } from 'lucide-react-native';
 
 import { useAppTheme } from '@/src/context/ThemeContext';
+import { useAuth } from '@/src/context/AuthContext';
 import { fetchAdminAgencies, fetchAdminEvents } from '@/src/api/endpoints';
-import api from '@/src/api/client';
+import { api } from '@/src/api/client';
 import { Header } from '@/src/components/common/Header';
 import { Button } from '@/src/components/common/Button';
 import { Skeleton } from '@/src/components/common/Skeleton';
 import { Typography } from '@/src/constants/Typography';
 
 export default function AdminSettingsScreen() {
+  const router = useRouter();
   const { colors, brand, mode, setMode } = useAppTheme();
+  const { logout } = useAuth();
 
   const [checking, setChecking] = useState(true);
   const [health, setHealth] = useState<{ status: string; service?: string; error?: string } | null>(null);
   const [totalEvents, setTotalEvents] = useState<number | null>(null);
   const [totalAgencies, setTotalAgencies] = useState<number | null>(null);
+
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      await logout();
+      router.replace('/landing');
+      return;
+    }
+    Alert.alert('Keluar Admin', 'Apakah Anda yakin ingin keluar dari sesi Administrator?', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Keluar',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/landing');
+        },
+      },
+    ]);
+  };
 
   const checkSystem = useCallback(async () => {
     setChecking(true);
@@ -51,8 +76,32 @@ export default function AdminSettingsScreen() {
   }, []);
 
   useEffect(() => {
-    checkSystem();
-  }, [checkSystem]);
+    let ignore = false;
+    Promise.allSettled([
+      api.checkHealth(),
+      fetchAdminEvents({ page: 1, per_page: 1 }),
+      fetchAdminAgencies({ page: 1, per_page: 1 }),
+    ]).then(([hRes, evRes, agRes]) => {
+      if (ignore) return;
+      if (hRes.status === 'fulfilled') {
+        setHealth(hRes.value);
+      } else {
+        setHealth({ status: 'unreachable', error: hRes.reason?.message });
+      }
+
+      if (evRes.status === 'fulfilled') {
+        setTotalEvents(evRes.value.data?.total_items ?? 0);
+      }
+      if (agRes.status === 'fulfilled') {
+        setTotalAgencies(agRes.value.data?.total_items ?? 0);
+      }
+      setChecking(false);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -206,6 +255,24 @@ export default function AdminSettingsScreen() {
             variant="outline"
             size="md"
             style={{ marginTop: 14 }}
+          />
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[Typography.h3, styles.cardTitle, { color: colors.text, marginBottom: 8 }]}>
+            Sesi Akun Admin
+          </Text>
+          <Text style={[Typography.caption, { color: colors.textSecondary, marginBottom: 16 }]}>
+            Keluar dari sesi administrator dan kembali ke landing page publik TicketWave.
+          </Text>
+          <Button
+            title="Keluar dari Sesi Admin"
+            onPress={handleLogout}
+            variant="outline"
+            size="md"
+            icon={<LogOut size={16} color={brand.danger} />}
+            style={{ borderColor: brand.danger }}
+            textStyle={{ color: brand.danger }}
           />
         </View>
       </ScrollView>

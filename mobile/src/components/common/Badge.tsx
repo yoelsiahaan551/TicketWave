@@ -26,6 +26,8 @@ export function Badge({ label, status, variant, style }: BadgeProps) {
       case 'cancelled':
       case 'archived':
       case 'dibatalkan':
+      case 'denied':
+      case 'failed':
         return 'danger';
       case 'finished':
       case 'festival':
@@ -35,6 +37,7 @@ export function Badge({ label, status, variant, style }: BadgeProps) {
       case 'single':
         return 'primary';
       case 'expired':
+      case 'refunded':
       case 'used':
       case 'draft':
       default:

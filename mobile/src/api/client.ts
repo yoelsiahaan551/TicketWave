@@ -1,4 +1,7 @@
-import { getDefaultApiBaseUrl } from '../constants/Config';
+import {
+  getDefaultApiBaseUrl,
+  isExplicitEnvApiUrlConfigured,
+} from '../constants/Config';
 import {
   clearAuthStorage,
   getCustomApiBaseUrl,
@@ -142,9 +145,12 @@ class MobileApiClient {
 
   async init(): Promise<string> {
     if (!this.initialized) {
-      const custom = await getCustomApiBaseUrl();
-      if (custom) {
-        this.baseURL = custom;
+      const defaultUrl = getDefaultApiBaseUrl();
+      if (isExplicitEnvApiUrlConfigured()) {
+        this.baseURL = defaultUrl;
+      } else {
+        const custom = await getCustomApiBaseUrl();
+        this.baseURL = custom ? custom : defaultUrl;
       }
       this.initialized = true;
     }
@@ -195,7 +201,13 @@ class MobileApiClient {
         endpoint.startsWith('/auth/request-password-reset') ||
         endpoint.startsWith('/auth/reset-password');
 
-      if (response.status === 401 && !isAuthPublicEndpoint) {
+      const isAuthError =
+        (response.status === 401 ||
+          (response.status === 422 && isInvalidTokenError({ data, raw: rawData }))) &&
+        !isAuthPublicEndpoint;
+
+      if (isAuthError) {
+        console.log(`[API Interceptor] Auth error ${response.status} on ${endpoint} (${formatErrorMessage(data, response.status)}). Attempting token refresh...`);
         const refreshed = await this.refreshToken({ silent });
         if (refreshed) {
           const newToken = await getStoredAccessToken();
@@ -207,6 +219,7 @@ class MobileApiClient {
             },
           });
           const retryRaw = await retryResponse.json().catch(() => ({}));
+          console.log(`[API Interceptor] Retry ${endpoint} completed with HTTP ${retryResponse.status}`);
           const retryData = normalizeResponse(retryRaw);
           if (!retryResponse.ok && !retryData.success) {
             if (retryResponse.status === 401) {
@@ -239,16 +252,14 @@ class MobileApiClient {
 
       return data;
     } catch (error: any) {
-      if (!silent) {
-        console.warn('[API Error]', endpoint, error?.message || error);
+      if (__DEV__ && !silent) {
+        console.warn('[API Error]', endpoint, this.baseURL, error?.message || error);
       }
       if (error instanceof ApiError) {
         throw error;
       }
       throw new ApiError(
-        error?.message?.includes('Network request failed') || error?.message?.includes('fetch')
-          ? `Gagal terhubung ke server (${this.baseURL}). Pastikan backend TicketWave berjalan dan alamat IP benar.`
-          : error?.message || 'Network error',
+        'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.',
         0
       );
     }
@@ -260,6 +271,7 @@ class MobileApiClient {
     if (!refreshToken) return false;
 
     try {
+      console.log(`[API Interceptor] POST ${this.baseURL}/auth/refresh with refresh token`);
       const response = await fetch(`${this.baseURL}/auth/refresh`, {
         method: 'POST',
         headers: {
@@ -379,6 +391,7 @@ class MobileApiClient {
             body: formData,
           });
           const retryRaw = await retryResponse.json().catch(() => ({}));
+          console.log(`[API Interceptor] Retry ${endpoint} completed with HTTP ${retryResponse.status}`);
           const retryData = normalizeResponse(retryRaw);
           if (!retryResponse.ok && !retryData.success) {
             if (retryResponse.status === 401) {

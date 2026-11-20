@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Calendar,
   ScanLine,
-  CheckCircle2,
   History,
   LogOut,
   X,
@@ -24,12 +23,19 @@ export default function OfficerSidebar({ mobileOpen, onClose }) {
     { name: "Dashboard", href: "/officer", icon: LayoutDashboard },
     { name: "Event Tugas", href: "/officer/events", icon: Calendar },
     { name: "Scan Tiket", href: "/officer/scan", icon: ScanLine },
-    { name: "Validasi Tiket", href: "/officer/validation", icon: CheckCircle2 },
     { name: "Riwayat Check-in", href: "/officer/history", icon: History },
   ];
 
   const isActive = (href) => {
     if (href === "/officer") return pathname === "/officer";
+    if (href === "/officer/scan") {
+      return (
+        pathname === "/officer/scan" ||
+        pathname?.startsWith("/officer/scan/") ||
+        pathname === "/officer/validation" ||
+        pathname?.startsWith("/officer/validation/")
+      );
+    }
     return pathname === href || pathname?.startsWith(href + "/");
   };
 

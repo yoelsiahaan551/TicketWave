@@ -8,12 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { QrCode, RefreshCw, Search, Ticket } from 'lucide-react-native';
+import { RefreshCw, Search, Ticket } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { fetchBookingDetail } from '../../src/api/endpoints';
 import { getSavedBookingEntries, saveBookingEntry } from '../../src/utils/storage';
+import { getTicketDisplayStatus } from '../../src/utils/formatters';
 import { TicketItem } from '../../src/types';
 import { Header } from '../../src/components/common/Header';
 import { Input } from '../../src/components/common/Input';
@@ -32,7 +33,7 @@ const FILTERS = [
 
 export default function TicketsScreen() {
   const router = useRouter();
-  const { colors, brand, isDark } = useAppTheme();
+  const { colors, brand } = useAppTheme();
 
   const [tickets, setTickets] = useState<TicketItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,63 +46,86 @@ export default function TicketsScreen() {
 
   const [selectedTicket, setSelectedTicket] = useState<TicketItem | null>(null);
 
-  const loadTickets = useCallback(async () => {
-    try {
-      const entries = await getSavedBookingEntries();
-      if (entries.length === 0) {
-        setTickets([]);
-        return;
-      }
-
-      const settled = await Promise.allSettled(
-        entries.map((e) => fetchBookingDetail(e.booking_code))
-      );
-
-      const aggregated: TicketItem[] = [];
-      settled.forEach((result) => {
-        if (result.status === 'fulfilled' && result.value?.success && result.value.data) {
-          const { booking, event, ticket_type, tickets: tList } = result.value.data;
-          (tList || []).forEach((t) => {
-            aggregated.push({
-              ...t,
-              booking_code: booking.booking_code,
-              booking_status: booking.status,
-              buyer_name: booking.buyer_name,
-              recipient_email: booking.recipient_email || booking.buyer_email,
-              event_id: event?.id,
-              event_name: event?.name || 'Event TicketWave',
-              artist_name:
-                event?.artist_name ||
-                (event?.event_type === 'festival'
-                  ? `Festival ${event?.days_count || 1} Hari`
-                  : 'Live Event'),
-              venue: event?.venue
-                ? `${event.venue}${event.city ? `, ${event.city}` : ''}`
-                : event?.city || '-',
-              event_date: event?.event_date,
-              event_time: event?.event_time,
-              ticket_type_name: ticket_type?.name || 'Regular',
-            });
-          });
-        }
-      });
-
-      setTickets(aggregated);
-    } catch {
-      setTickets([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const fetchTickets = useCallback(async (): Promise<TicketItem[]> => {
+    const entries = await getSavedBookingEntries();
+    if (entries.length === 0) {
+      return [];
     }
+
+    const settled = await Promise.allSettled(
+      entries.map((e) => fetchBookingDetail(e.booking_code))
+    );
+
+    const aggregated: TicketItem[] = [];
+    settled.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value?.success && result.value.data) {
+        const { booking, event, ticket_type, tickets: tList } = result.value.data;
+        (tList || []).forEach((t) => {
+          aggregated.push({
+            ...t,
+            status: getTicketDisplayStatus(booking.status, t.status) as any,
+            booking_code: booking.booking_code,
+            booking_status: booking.status,
+            buyer_name: booking.buyer_name,
+            recipient_email: booking.recipient_email || booking.buyer_email,
+            event_id: event?.id,
+            event_name: event?.name || 'Event TicketWave',
+            artist_name:
+              event?.artist_name ||
+              (event?.event_type === 'festival'
+                ? `Festival ${event?.days_count || 1} Hari`
+                : 'Live Event'),
+            venue: event?.venue
+              ? `${event.venue}${event.city ? `, ${event.city}` : ''}`
+              : event?.city || '-',
+            event_date: event?.event_date,
+            event_time: event?.event_time,
+            ticket_type_name: ticket_type?.name || 'Regular',
+          });
+        });
+      }
+    });
+
+    return aggregated;
   }, []);
 
   useEffect(() => {
-    loadTickets();
-  }, [loadTickets]);
+    let ignore = false;
+    fetchTickets()
+      .then((items) => {
+        if (!ignore) {
+          setTickets(items);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setTickets([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [fetchTickets]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadTickets();
+    fetchTickets()
+      .then((items) => {
+        setTickets(items);
+      })
+      .catch(() => {
+        setTickets([]);
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
   };
 
   const handleImportBooking = async () => {
@@ -120,7 +144,7 @@ export default function TicketsScreen() {
           event_name: res.data.event?.name,
         });
         setLookupCode('');
-        await loadTickets();
+        onRefresh();
       }
     } catch (err: any) {
       setLookupError(err?.message || `Kode booking "${code}" tidak ditemukan.`);

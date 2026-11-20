@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,23 +10,18 @@ import {
   View,
 } from 'react-native';
 import {
-  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Heart,
-  KeyRound,
   LayoutDashboard,
   LogIn,
   LogOut,
-  Mail,
   Phone,
   RefreshCw,
+  ScanLine,
   Settings,
-  Shield,
   ShieldAlert,
   Ticket,
-  User,
-  UserCheck,
   UserPlus,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -88,7 +85,12 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      await logout();
+      router.replace('/landing');
+      return;
+    }
     Alert.alert('Keluar Akun', 'Apakah Anda yakin ingin keluar dari akun TicketWave?', [
       { text: 'Batal', style: 'cancel' },
       {
@@ -96,6 +98,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await logout();
+          router.replace('/landing');
         },
       },
     ]);
@@ -136,7 +139,17 @@ export default function ProfileScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={brand.primary}
+          />
+        }
+      >
         {loading ? (
           <View style={{ gap: 14 }}>
             <Skeleton width="100%" height={160} borderRadius={24} />
@@ -283,6 +296,34 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <ChevronRight size={18} color={brand.primary} />
+              </TouchableOpacity>
+            )}
+
+            {/* Officer Portal Quick Entry if Officer */}
+            {isOfficer && (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => router.push('/officer' as any)}
+                style={[
+                  styles.adminBanner,
+                  {
+                    backgroundColor: isDark ? 'rgba(0,212,255,0.18)' : '#ECFEFF',
+                    borderColor: brand.cyan,
+                  },
+                ]}
+              >
+                <View style={styles.adminBannerLeft}>
+                  <ScanLine size={20} color={brand.cyan} />
+                  <View>
+                    <Text style={[styles.adminBannerTitle, { color: brand.cyan }]}>
+                      Portal Petugas Lapangan
+                    </Text>
+                    <Text style={[styles.adminBannerSub, { color: colors.textSecondary }]}>
+                      Scan QR tiket, validasi manual & cek-in gate
+                    </Text>
+                  </View>
+                </View>
+                <ChevronRight size={18} color={brand.cyan} />
               </TouchableOpacity>
             )}
 

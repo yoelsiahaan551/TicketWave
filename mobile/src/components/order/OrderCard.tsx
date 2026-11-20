@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CalendarDays, ChevronRight, CreditCard, Ticket } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, CreditCard } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../context/ThemeContext';
 import { BookingDetailResponse } from '../../types';
 import { formatRupiah, formatTanggalSingkat } from '../../utils/formatters';
+import { getOfficialPaymentUrl } from '../../utils/payment';
 import { Badge } from '../common/Badge';
 
 interface OrderCardProps {
@@ -19,7 +20,11 @@ export function OrderCard({ item, onPayNow, onCancel }: OrderCardProps) {
 
   const { booking, event, ticket_type } = item;
   const isPending = booking.status === 'pending_payment';
-  const payUrl = booking.payment_url;
+  const payUrl = getOfficialPaymentUrl(booking);
+
+  const openOrderDetail = () => {
+    router.push(`/order/${booking.booking_code}` as any);
+  };
 
   return (
     <View
@@ -32,63 +37,72 @@ export function OrderCard({ item, onPayNow, onCancel }: OrderCardProps) {
         },
       ]}
     >
-      {/* Top Header */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.textMuted }]}>NO. PESANAN</Text>
-          <Text style={[styles.bookingCode, { color: colors.text }]}>
-            {booking.booking_code}
-          </Text>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={openOrderDetail}
+        accessibilityRole="button"
+        accessibilityLabel={`Buka detail pesanan ${booking.booking_code}`}
+        testID={`order-card-${booking.booking_code}`}
+      >
+        {/* Top Header */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.eyebrow, { color: colors.textMuted }]}>NO. PESANAN</Text>
+            <Text style={[styles.bookingCode, { color: colors.text }]}>
+              {booking.booking_code}
+            </Text>
+          </View>
+          <Badge status={booking.status} />
         </View>
-        <Badge status={booking.status} />
-      </View>
 
-      {/* Main Info */}
-      <View style={[styles.body, { borderTopColor: colors.border }]}>
-        <Text style={[styles.eventName, { color: colors.text }]} numberOfLines={1}>
-          {event?.name || 'Event TicketWave'}
-        </Text>
+        {/* Main Info */}
+        <View style={[styles.body, { borderTopColor: colors.border }]}>
+          <Text style={[styles.eventName, { color: colors.text }]} numberOfLines={1}>
+            {event?.name || 'Event TicketWave'}
+          </Text>
 
-        <View style={styles.metaGrid}>
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Kategori</Text>
-            <Text style={[styles.metaVal, { color: colors.textSecondary }]} numberOfLines={1}>
-              {ticket_type?.name || 'Reguler'}
-            </Text>
-          </View>
-
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Jumlah</Text>
-            <Text style={[styles.metaVal, { color: colors.textSecondary }]}>
-              {booking.quantity} Tiket
-            </Text>
-          </View>
-
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Tanggal</Text>
-            <View style={styles.dateRow}>
-              <CalendarDays size={12} color={brand.primary} />
-              <Text style={[styles.metaVal, { color: colors.textSecondary }]}>
-                {formatTanggalSingkat(booking.created_at)}
+          <View style={styles.metaGrid}>
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Kategori</Text>
+              <Text style={[styles.metaVal, { color: colors.textSecondary }]} numberOfLines={1}>
+                {ticket_type?.name || 'Reguler'}
               </Text>
             </View>
+
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Jumlah</Text>
+              <Text style={[styles.metaVal, { color: colors.textSecondary }]}>
+                {booking.quantity} Tiket
+              </Text>
+            </View>
+
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Tanggal</Text>
+              <View style={styles.dateRow}>
+                <CalendarDays size={12} color={brand.primary} />
+                <Text style={[styles.metaVal, { color: colors.textSecondary }]}>
+                  {formatTanggalSingkat(booking.created_at)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Total Price Row */}
+          <View style={[styles.totalRow, { backgroundColor: colors.surfaceElevated }]}>
+            <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total Pembayaran</Text>
+            <Text style={[styles.totalPrice, { color: brand.primary }]}>
+              {formatRupiah(booking.total_price)}
+            </Text>
           </View>
         </View>
-
-        {/* Total Price Row */}
-        <View style={[styles.totalRow, { backgroundColor: colors.surfaceElevated }]}>
-          <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total Pembayaran</Text>
-          <Text style={[styles.totalPrice, { color: brand.primary }]}>
-            {formatRupiah(booking.total_price)}
-          </Text>
-        </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Actions */}
       <View style={styles.actionRow}>
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.push(`/order/${booking.booking_code}` as any)}
+          onPress={openOrderDetail}
+          accessibilityRole="button"
           style={[styles.detailBtn, { backgroundColor: brand.primary }]}
         >
           <Text style={styles.detailBtnText}>Lihat Detail</Text>
@@ -99,6 +113,7 @@ export function OrderCard({ item, onPayNow, onCancel }: OrderCardProps) {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => onPayNow(payUrl)}
+            accessibilityRole="button"
             style={[styles.payBtn, { backgroundColor: '#10B981' }]}
           >
             <CreditCard size={13} color="#FFFFFF" />
@@ -110,6 +125,7 @@ export function OrderCard({ item, onPayNow, onCancel }: OrderCardProps) {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => onCancel(booking.booking_code)}
+            accessibilityRole="button"
             style={[styles.cancelBtn, { borderColor: brand.danger }]}
           >
             <Text style={[styles.cancelBtnText, { color: brand.danger }]}>Batalkan</Text>

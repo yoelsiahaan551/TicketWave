@@ -29,8 +29,17 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    reloadFavorites();
-  }, [reloadFavorites]);
+    let isMounted = true;
+    Promise.all([getFavoriteArtists(), getFavoriteEvents()]).then(([artists, events]) => {
+      if (isMounted) {
+        setFavoriteArtists(artists);
+        setFavoriteEventIds(events);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const isArtistFavorite = useCallback(
     (name: string) => favoriteArtists.includes(name),

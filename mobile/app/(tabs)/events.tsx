@@ -20,7 +20,6 @@ import { EventCard } from '../../src/components/event/EventCard';
 import { Input } from '../../src/components/common/Input';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { EventCardSkeleton } from '../../src/components/common/Skeleton';
-import { Button } from '../../src/components/common/Button';
 
 const SORT_OPTIONS = [
   { id: 'terdekat', label: 'Tanggal Terdekat' },
@@ -60,23 +59,9 @@ export default function EventsScreen() {
       .catch(() => {});
   }, []);
 
-  const loadEvents = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const params: any = {
-        per_page: 20,
-      };
-      if (search.trim()) params.search = search.trim();
-      if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
-      if (selectedCity !== 'Semua') params.city = selectedCity;
-
-      const res = await fetchPublicEvents(params);
-      let items = res.data?.items || [];
-
-      // Sort client-side
-      items = [...items].sort((a, b) => {
+  const sortItems = useCallback(
+    (raw: EventItem[]) => {
+      return [...raw].sort((a, b) => {
         if (selectedSort === 'terdekat') {
           return new Date(a.event_date || 0).getTime() - new Date(b.event_date || 0).getTime();
         }
@@ -91,23 +76,61 @@ export default function EventsScreen() {
         }
         return 0;
       });
-
-      setEvents(items);
-    } catch (err: any) {
-      setError(err?.message || 'Gagal memuat katalog event.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [search, selectedCategory, selectedCity, selectedSort]);
+    },
+    [selectedSort]
+  );
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    let ignore = false;
+    const params: any = { per_page: 20 };
+    if (search.trim()) params.search = search.trim();
+    if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
+    if (selectedCity !== 'Semua') params.city = selectedCity;
+
+    fetchPublicEvents(params)
+      .then((res) => {
+        if (!ignore) {
+          const items = res.data?.items || [];
+          setEvents(sortItems(items));
+          setError(null);
+        }
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setError(err?.message || 'Gagal memuat katalog event.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [search, selectedCategory, selectedCity, sortItems]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadEvents();
+    const params: any = { per_page: 20 };
+    if (search.trim()) params.search = search.trim();
+    if (selectedCategory !== 'Semua') params.event_type = selectedCategory.toLowerCase();
+    if (selectedCity !== 'Semua') params.city = selectedCity;
+
+    fetchPublicEvents(params)
+      .then((res) => {
+        const items = res.data?.items || [];
+        setEvents(sortItems(items));
+        setError(null);
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Gagal memuat katalog event.');
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
   };
 
   const handleResetFilters = () => {
@@ -222,6 +245,11 @@ export default function EventsScreen() {
       </View>
 
       {/* Results Header */}
+      {error && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+          <Text style={{ color: '#EF4444', fontSize: 13 }}>{error}</Text>
+        </View>
+      )}
       <View style={styles.resultsInfoRow}>
         <Text style={[styles.resultsCount, { color: colors.textMuted }]}>
           Menampilkan <Text style={{ color: colors.text, fontWeight: '800' }}>{events.length}</Text> event aktif

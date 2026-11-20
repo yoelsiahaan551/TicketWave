@@ -1,46 +1,44 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowRight,
-  Building2,
   CalendarDays,
-  CheckCircle2,
-  CreditCard,
   Mail,
   MapPin,
   Phone,
-  ShieldCheck,
-  Smartphone,
   Sparkles,
-  Ticket,
   User,
 } from 'lucide-react-native';
 
 import { useAppTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
 import { createCheckout } from '../src/api/endpoints';
+import { PaymentMethodId } from '../src/types';
 import { saveBookingEntry } from '../src/utils/storage';
 import { formatRupiah, formatTanggalSingkat } from '../src/utils/formatters';
+import {
+  getOfficialPaymentUrl,
+  openMidtransPaymentBrowser,
+} from '../src/utils/payment';
 import { Header } from '../src/components/common/Header';
 import { Input } from '../src/components/common/Input';
 import { Button } from '../src/components/common/Button';
+import { PaymentMethodSelector } from '../src/components/checkout/PaymentMethodSelector';
 
-const PAYMENT_METHODS = [
-  { id: 'transfer_bank', label: 'Transfer Bank / Virtual Account', icon: Building2, desc: 'BCA, Mandiri, BNI, BRI' },
-  { id: 'qris_ewallet', label: 'QRIS & E-Wallet', icon: Smartphone, desc: 'GoPay, OVO, DANA, ShopeePay' },
-  { id: 'credit_card', label: 'Kartu Kredit / Debit', icon: CreditCard, desc: 'Visa, Mastercard, JCB' },
-];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidPhoneNumber(rawPhone: string): boolean {
+  const digits = rawPhone.trim().replace(/[\s-]/g, '').replace(/^\+/, '');
+  return /^\d{10,15}$/.test(digits);
+}
 
 export default function CheckoutScreen() {
   const { payload } = useLocalSearchParams<{ payload?: string }>();
@@ -60,17 +58,21 @@ export default function CheckoutScreen() {
   const [buyerEmail, setBuyerEmail] = useState(user?.email || '');
   const [buyerPhone, setBuyerPhone] = useState(user?.phone || '');
   const [recipientEmail, setRecipientEmail] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('transfer_bank');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethodId | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitLockRef = useRef(false);
 
   if (!checkoutData) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Header showBack title="Checkout Tiket" />
         <View style={styles.emptyWrap}>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Data Checkout Tidak Ditemukan</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            Data Checkout Tidak Ditemukan
+          </Text>
           <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
             Silakan pilih event dan kategori tiket terlebih dahulu.
           </Text>
@@ -84,28 +86,57 @@ export default function CheckoutScreen() {
     );
   }
 
-  const handleConfirm = async () => {
-    setError(null);
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const totalAmount =
+    Number(checkoutData.unitPrice || 0) * Number(checkoutData.quantity || 1);
 
+  const hasValidTicket =
+    Number(checkoutData.eventId) > 0 &&
+    Number(checkoutData.ticketTypeId) > 0 &&
+    Number(checkoutData.quantity) > 0;
+
+  const isCheckoutReady =
+    buyerName.trim().length >= 2 &&
+    EMAIL_REGEX.test(buyerEmail.trim()) &&
+    isValidPhoneNumber(buyerPhone) &&
+    (!recipientEmail.trim() || EMAIL_REGEX.test(recipientEmail.trim())) &&
+    hasValidTicket &&
+    selectedPaymentMethod !== null &&
+    !submitting;
+
+  const handleConfirm = async () => {
+    if (submitLockRef.current || submitting) {
+      return;
+    }
+    setError(null);
+
+    if (!hasValidTicket) {
+      setError('Tiket belum dipilih. Silakan pilih kategori tiket terlebih dahulu.');
+      return;
+    }
     if (!buyerName.trim() || buyerName.trim().length < 2) {
       setError('Nama lengkap pembeli wajib diisi (minimal 2 karakter).');
       return;
     }
-    if (!buyerEmail.trim() || !emailRegex.test(buyerEmail.trim())) {
+    if (!buyerEmail.trim() || !EMAIL_REGEX.test(buyerEmail.trim())) {
       setError('Format email pembeli tidak valid.');
       return;
     }
-    if (!buyerPhone.trim() || buyerPhone.trim().length < 10) {
-      setError('Nomor telepon wajib diisi minimal 10 digit.');
+    if (!isValidPhoneNumber(buyerPhone)) {
+      setError('Nomor telepon wajib diisi minimal 10 digit angka yang valid.');
       return;
     }
-    if (recipientEmail.trim() && !emailRegex.test(recipientEmail.trim())) {
+    if (recipientEmail.trim() && !EMAIL_REGEX.test(recipientEmail.trim())) {
       setError('Format email penerima tiket tidak valid.');
       return;
     }
+    if (!selectedPaymentMethod) {
+      setError('Pilih salah satu metode pembayaran sebelum melanjutkan.');
+      return;
+    }
 
+    submitLockRef.current = true;
     setSubmitting(true);
+
     try {
       const res = await createCheckout({
         event_id: Number(checkoutData.eventId),
@@ -114,44 +145,46 @@ export default function CheckoutScreen() {
         buyer_name: buyerName.trim(),
         buyer_email: buyerEmail.trim(),
         buyer_phone: buyerPhone.trim(),
-        ...(recipientEmail.trim() ? { recipient_email: recipientEmail.trim() } : {}),
+        ...(recipientEmail.trim()
+          ? { recipient_email: recipientEmail.trim() }
+          : {}),
+        payment_method: selectedPaymentMethod,
       });
 
       if (res.success && res.data?.booking) {
         const booking = res.data.booking;
-        const payUrl = res.data.payment_url || booking.payment_url || null;
+        const rawPayUrl = res.data.payment_url || booking.payment_url || null;
+        const officialPaymentUrl = getOfficialPaymentUrl({
+          status: booking.status,
+          payment_url: rawPayUrl,
+          booking_code: booking.booking_code,
+        });
 
         await saveBookingEntry({
           booking_code: booking.booking_code,
-          payment_url: payUrl,
+          payment_url: officialPaymentUrl,
           recipient_email: recipientEmail.trim() || buyerEmail.trim(),
           event_name: checkoutData.eventName,
         });
 
-        Alert.alert(
-          'Pesanan Berhasil Dibuat!',
-          `Kode Booking: ${booking.booking_code}\n\nSilakan selesaikan pembayaran dalam 15 menit agar kuota tiket Anda terjamin.`,
-          [
-            {
-              text: 'Buka Pembayaran',
-              onPress: async () => {
-                if (payUrl) {
-                  try {
-                    await Linking.openURL(payUrl);
-                  } catch {
-                    // ignore
-                  }
-                }
-                router.replace(`/order/${booking.booking_code}` as any);
-              },
+        if (officialPaymentUrl) {
+          const browserResult = await openMidtransPaymentBrowser(officialPaymentUrl);
+          router.replace({
+            pathname: '/order/[id]',
+            params: {
+              id: booking.booking_code,
+              fromPayment: browserResult.status,
             },
-            {
-              text: 'Lihat Detail Pesanan',
-              style: 'cancel',
-              onPress: () => router.replace(`/order/${booking.booking_code}` as any),
+          } as any);
+        } else {
+          router.replace({
+            pathname: '/order/[id]',
+            params: {
+              id: booking.booking_code,
+              fromPayment: 'invalid_url',
             },
-          ]
-        );
+          } as any);
+        }
       } else {
         setError(res.message || 'Gagal memproses pemesanan tiket.');
       }
@@ -162,11 +195,10 @@ export default function CheckoutScreen() {
           : err?.message || 'Gagal memproses checkout. Silakan coba kembali.'
       );
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
-
-  const totalAmount = Number(checkoutData.unitPrice || 0) * Number(checkoutData.quantity || 1);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -276,37 +308,19 @@ export default function CheckoutScreen() {
           {/* Payment Method Selector */}
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.cardEyebrow, { color: brand.primary }]}>METODE PEMBAYARAN</Text>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Pilih Pembayaran</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Pilih Metode Pembayaran</Text>
+            <Text style={[styles.cardDesc, { color: colors.textSecondary, marginBottom: 4 }]}>
+              Wajib pilih salah satu metode sebelum melanjutkan ke halaman pembayaran Midtrans.
+            </Text>
 
-            <View style={{ gap: 10, marginTop: 12 }}>
-              {PAYMENT_METHODS.map((method) => {
-                const selected = paymentMethod === method.id;
-                const IconComp = method.icon;
-                return (
-                  <TouchableOpacity
-                    key={method.id}
-                    activeOpacity={0.8}
-                    onPress={() => setPaymentMethod(method.id)}
-                    style={[
-                      styles.methodCard,
-                      {
-                        backgroundColor: selected ? (isDark ? 'rgba(0,128,242,0.18)' : '#EFF6FF') : colors.surfaceElevated,
-                        borderColor: selected ? brand.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.methodIcon, { backgroundColor: selected ? brand.primary : colors.surface }]}>
-                      <IconComp size={18} color={selected ? '#FFFFFF' : brand.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.methodLabel, { color: colors.text }]}>{method.label}</Text>
-                      <Text style={[styles.methodDesc, { color: colors.textMuted }]}>{method.desc}</Text>
-                    </View>
-                    {selected && <CheckCircle2 size={18} color={brand.primary} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <PaymentMethodSelector
+              selectedMethod={selectedPaymentMethod}
+              onSelect={(method) => {
+                setSelectedPaymentMethod(method);
+                if (error) setError(null);
+              }}
+              disabled={submitting}
+            />
           </View>
 
           {/* Price Breakdown / Summary Card */}
@@ -348,15 +362,24 @@ export default function CheckoutScreen() {
             ) : null}
 
             <Button
-              title="Konfirmasi & Bayar Sekarang"
+              title={`Lanjut ke Pembayaran — ${formatRupiah(totalAmount)}`}
+              loadingTitle="Memproses Pesanan…"
               onPress={handleConfirm}
+              disabled={!isCheckoutReady}
               variant="gradient"
               size="lg"
               loading={submitting}
               icon={<ArrowRight size={18} color="#FFFFFF" />}
               iconPosition="right"
+              testID="checkout-submit-btn"
               style={{ marginTop: 16 }}
             />
+
+            {!selectedPaymentMethod ? (
+              <Text style={[styles.validationHint, { color: colors.textMuted }]}>
+                Pilih metode pembayaran terlebih dahulu untuk mengaktifkan tombol pembayaran.
+              </Text>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -472,30 +495,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 14,
   },
-  methodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    gap: 12,
-  },
-  methodIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  methodLabel: {
-    fontSize: 13.5,
-    fontWeight: '800',
-  },
-  methodDesc: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 1,
-  },
   breakdownRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -535,5 +534,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     marginTop: 14,
+  },
+  validationHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 10,
   },
 });

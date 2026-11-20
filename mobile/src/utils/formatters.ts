@@ -70,6 +70,12 @@ export function getStatusLabel(status: string): string {
       return 'Dibatalkan';
     case 'expired':
       return 'Kadaluarsa';
+    case 'denied':
+      return 'Ditolak';
+    case 'refunded':
+      return 'Dikembalikan';
+    case 'failed':
+      return 'Gagal';
     case 'valid':
       return 'Valid / Aktif';
     case 'used':
@@ -78,3 +84,25 @@ export function getStatusLabel(status: string): string {
       return status;
   }
 }
+
+/**
+ * Returns the effective display status of a ticket based on its parent booking status.
+ * Matches Next.js web behavior:
+ * - If booking is 'paid', returns the individual ticket's status ('valid', 'used', etc.)
+ * - If booking is 'cancelled', 'expired', 'denied', 'refunded', or 'failed', the ticket status reflects it
+ * - If booking is 'pending_payment', returns 'pending_payment'
+ */
+export function getTicketDisplayStatus(
+  bookingStatus?: string | null,
+  ticketStatus?: string | null
+): string {
+  if (bookingStatus === 'paid') return ticketStatus || 'valid';
+  if (
+    bookingStatus &&
+    ['cancelled', 'expired', 'denied', 'refunded', 'failed'].includes(bookingStatus)
+  ) {
+    return bookingStatus;
+  }
+  return 'pending_payment';
+}
+

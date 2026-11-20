@@ -310,6 +310,7 @@ class APIClient {
         sessionStorage.removeItem('access_token');
       } else {
         sessionStorage.setItem('access_token', token);
+        localStorage.removeItem('access_token');
       }
     }
   }
@@ -321,6 +322,7 @@ class APIClient {
         sessionStorage.removeItem('refresh_token');
       } else {
         sessionStorage.setItem('refresh_token', token);
+        localStorage.removeItem('refresh_token');
       }
     }
   }
@@ -333,18 +335,57 @@ class APIClient {
         sessionStorage.removeItem('user');
       } else {
         sessionStorage.setItem('user', serialized);
+        localStorage.removeItem('user');
       }
     }
   }
 
-  subscribeSessionCleared(listener) {
+  setSession({ accessToken, refreshToken = null, userData = null, remember = false }) {
+    this.sessionVersion++;
+    if (typeof window === 'undefined') return;
+    for (const store of [sessionStorage, localStorage]) {
+      try {
+        for (const key of [
+          'access_token',
+          'refresh_token',
+          'user',
+          'ticketwave_verification_token',
+          'ticketwave_checkout',
+          'ticketwave_payment_return_context',
+        ]) {
+          store.removeItem(key);
+        }
+      } catch {
+        // Ignore storage errors and still attempt writing active session.
+      }
+    }
+    this.setAccessToken(accessToken, remember);
+    if (refreshToken) {
+      this.setRefreshToken(refreshToken, remember);
+    }
+    if (userData) {
+      this.setStoredUser(userData, remember);
+    }
+  }
+
+  subscribeSessionCleared(listener, onExternalChange = null) {
     if (typeof window === 'undefined') return () => {};
     const onStorage = (event) => {
       if (event.storageArea !== localStorage) return;
-      if ((event.key === null || ['access_token', 'refresh_token', 'user'].includes(event.key)) &&
-          event.newValue === null && !this.getAccessToken() && !this.getRefreshToken()) {
-        this.sessionVersion++;
-        listener();
+      if (event.key === null || ['access_token', 'refresh_token', 'user'].includes(event.key)) {
+        // Tab dengan sesi sessionStorage sendiri tidak boleh tertimpa perubahan localStorage tab lain
+        if (sessionStorage.getItem('access_token') || sessionStorage.getItem('refresh_token')) {
+          return;
+        }
+        if (!this.getAccessToken() && !this.getRefreshToken()) {
+          this.sessionVersion++;
+          listener();
+        } else {
+          this.sessionVersion++;
+          if (typeof onExternalChange === 'function') {
+            onExternalChange();
+          }
+        }
       }
     };
     window.addEventListener(SESSION_CLEARED_EVENT, listener);
@@ -361,7 +402,14 @@ class APIClient {
       for (const name of ['sessionStorage', 'localStorage']) {
         try {
           const store = name === 'sessionStorage' ? sessionStorage : localStorage;
-          for (const key of ['access_token', 'refresh_token', 'user', 'ticketwave_verification_token', 'ticketwave_checkout']) {
+          for (const key of [
+            'access_token',
+            'refresh_token',
+            'user',
+            'ticketwave_verification_token',
+            'ticketwave_checkout',
+            'ticketwave_payment_return_context',
+          ]) {
             store.removeItem(key);
           }
         } catch {
@@ -496,6 +544,11 @@ class APIClient {
       console.error('[Upload Error]', endpoint.split('?')[0], error.status || 'network');
       throw error;
     }
+  }
+
+  // Eksplisit sinkronisasi status pembayaran Sandbox/development (POST, bukan GET read-only)
+  async syncPaymentStatus(bookingCode) {
+    return this.post(`/checkout/${encodeURIComponent(bookingCode)}/sync-payment-status`, {});
   }
 
   // Health check endpoint (/health berada di root server, bukan /api/health)

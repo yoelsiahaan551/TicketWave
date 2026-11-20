@@ -3,7 +3,7 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-na
 import QRCode from 'qrcode';
 import Svg, { Rect, Path } from 'react-native-svg';
 import * as Clipboard from 'expo-clipboard';
-import { Calendar, Copy, MapPin, ShieldCheck, X } from 'lucide-react-native';
+import { AlertTriangle, Calendar, Copy, MapPin, ShieldCheck, X } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { TicketItem } from '../../types';
 import { formatTanggal, formatWaktu } from '../../utils/formatters';
@@ -52,7 +52,11 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
 
   if (!ticket) return null;
 
+  const isPaid = ticket.booking_status === 'paid';
+  const isValid = isPaid && (ticket.status === 'valid' || ticket.status === 'aktif');
+
   const handleCopyToken = async () => {
+    if (!isValid) return;
     await Clipboard.setStringAsync(ticket.qr_token || ticket.ticket_code);
     Alert.alert('Disalin', 'Kode QR / Token tiket disalin ke clipboard.');
   };
@@ -72,7 +76,9 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={[styles.eyebrow, { color: brand.primary }]}>E-TICKET QR PASS</Text>
+              <Text style={[styles.eyebrow, { color: isValid ? brand.primary : '#EF4444' }]}>
+                {isValid ? 'E-TICKET QR PASS' : 'QR GATE NONAKTIF'}
+              </Text>
               <Text style={[styles.eventName, { color: colors.text }]} numberOfLines={2}>
                 {ticket.event_name}
               </Text>
@@ -106,29 +112,47 @@ export function QRCodeModal({ visible, ticket, onClose }: QRCodeModalProps) {
             </View>
           </View>
 
-          {/* QR Code Box */}
-          <View style={styles.qrWrapper}>
-            <View style={styles.qrBox}>
-              <QrSvg value={ticket.qr_token || ticket.ticket_code} size={200} />
-            </View>
-            <Text style={[styles.ticketCode, { color: colors.text }]}>
-              {ticket.ticket_code}
-            </Text>
-            <TouchableOpacity onPress={handleCopyToken} style={styles.copyBtn}>
-              <Copy size={14} color={brand.primary} />
-              <Text style={[styles.copyText, { color: brand.primary }]}>
-                Salin QR Token ({ticket.qr_token?.slice(0, 12)}...)
+          {/* QR Code Box or Inactive Notice */}
+          {isValid ? (
+            <View style={styles.qrWrapper}>
+              <View style={styles.qrBox}>
+                <QrSvg value={ticket.qr_token || ticket.ticket_code} size={200} />
+              </View>
+              <Text style={[styles.ticketCode, { color: colors.text }]}>
+                {ticket.ticket_code}
               </Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity onPress={handleCopyToken} style={styles.copyBtn}>
+                <Copy size={14} color={brand.primary} />
+                <Text style={[styles.copyText, { color: brand.primary }]}>
+                  Salin QR Token ({ticket.qr_token?.slice(0, 12)}...)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={[styles.inactiveCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+              <AlertTriangle size={36} color="#EF4444" />
+              <Text style={[styles.inactiveTitle, { color: colors.text }]}>
+                QR Gate Tidak Tersedia
+              </Text>
+              <Text style={[styles.inactiveSubtitle, { color: colors.textSecondary }]}>
+                {ticket.booking_status === 'cancelled'
+                  ? 'Pesanan ini telah dibatalkan sehingga e-ticket / QR Gate dinonaktifkan.'
+                  : ticket.booking_status === 'pending_payment'
+                  ? 'Pesanan belum dibayar. Selesaikan pembayaran untuk mengaktifkan QR Gate.'
+                  : 'E-ticket ini tidak aktif atau kedaluwarsa.'}
+              </Text>
+            </View>
+          )}
 
           {/* Buyer & Note */}
-          <View style={[styles.noteBox, { backgroundColor: brand.primarySoft }]}>
-            <ShieldCheck size={18} color={brand.primary} />
-            <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-              Tunjukkan QR Pass ini kepada petugas gate saat check-in di lokasi event. Pemegang: {ticket.buyer_name || 'Pemilik Tiket'}.
-            </Text>
-          </View>
+          {isValid ? (
+            <View style={[styles.noteBox, { backgroundColor: brand.primarySoft }]}>
+              <ShieldCheck size={18} color={brand.primary} />
+              <Text style={[styles.noteText, { color: colors.textSecondary }]}>
+                Tunjukkan QR Pass ini kepada petugas gate saat check-in di lokasi event. Pemegang: {ticket.buyer_name || 'Pemilik Tiket'}.
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -233,5 +257,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flex: 1,
     lineHeight: 18,
+  },
+  inactiveCard: {
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginVertical: 12,
+    gap: 8,
+  },
+  inactiveTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  inactiveSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: 12,
   },
 });

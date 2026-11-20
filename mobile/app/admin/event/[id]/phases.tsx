@@ -27,7 +27,7 @@ import { Button } from '@/src/components/common/Button';
 import { Skeleton } from '@/src/components/common/Skeleton';
 import { Typography } from '@/src/constants/Typography';
 
-const PHASE_NAMES: Array<'early_bird' | 'presale' | 'normal'> = [
+const PHASE_NAMES: ('early_bird' | 'presale' | 'normal')[] = [
   'early_bird',
   'presale',
   'normal',
@@ -54,10 +54,9 @@ export default function AdminTicketPhasesScreen() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  const refreshPhases = useCallback(async () => {
     if (!id) return;
     try {
-      setLoading(true);
       const evRes = await fetchAdminEventDetail(id);
       const ev = evRes.data || null;
       setEvent(ev);
@@ -74,14 +73,47 @@ export default function AdminTicketPhasesScreen() {
       }
     } catch {
       setPhases([]);
-    } finally {
-      setLoading(false);
     }
   }, [id, selectedTtId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!id) return;
+    let ignore = false;
+
+    fetchAdminEventDetail(id)
+      .then(async (evRes) => {
+        if (ignore) return;
+        const ev = evRes.data || null;
+        setEvent(ev);
+
+        const tts = ev?.ticket_types || [];
+        const activeTtId = selectedTtId || tts[0]?.id || null;
+        setSelectedTtId(activeTtId);
+
+        if (activeTtId) {
+          const phRes = await fetchTicketPhases(activeTtId);
+          if (!ignore) {
+            setPhases(phRes.data?.phases || []);
+          }
+        } else {
+          setPhases([]);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setPhases([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [id, selectedTtId]);
 
   const openCreateModal = () => {
     setEditingPhase(null);
@@ -122,7 +154,7 @@ export default function AdminTicketPhasesScreen() {
         await createTicketPhase(selectedTtId, payload);
       }
       setModalOpen(false);
-      await loadData();
+      await refreshPhases();
     } catch (err: any) {
       setFormError(err?.message || 'Gagal menyimpan fase harga.');
     } finally {
@@ -139,7 +171,7 @@ export default function AdminTicketPhasesScreen() {
         onPress: async () => {
           try {
             await deleteTicketPhase(p.id);
-            await loadData();
+            await refreshPhases();
           } catch (err: any) {
             Alert.alert('Error', err?.message || 'Gagal menghapus fase.');
           }

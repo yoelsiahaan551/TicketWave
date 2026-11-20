@@ -14,7 +14,12 @@ export const metadata: Metadata = {
   description:
     "TicketWave adalah platform booking tiket konser dan festival terlengkap di Indonesia.",
   icons: {
-    icon: "/logo/ticketwave.png",
+    icon: [
+      { url: "/logo/ticketwave.png" },
+      { url: "/logo/ticketwave.png", type: "image/png" },
+    ],
+    shortcut: "/logo/ticketwave.png",
+    apple: "/logo/ticketwave.png",
   },
 };
 

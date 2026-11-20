@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -7,14 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import {
   CheckCircle2,
-  KeyRound,
   Lock,
   Moon,
   Palette,
-  RefreshCw,
   Server,
   Sun,
   XCircle,
@@ -23,20 +20,25 @@ import {
 import { useAppTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
 import { requestPasswordResetApi, resetPasswordApi } from '../src/api/endpoints';
-import api from '../src/api/client';
+import { api } from '../src/api/client';
+import {
+  getApiBaseUrlSourceLabel,
+  getDefaultApiBaseUrl,
+  isExplicitEnvApiUrlConfigured,
+} from '../src/constants/Config';
 import { Header } from '../src/components/common/Header';
 import { Input } from '../src/components/common/Input';
 import { Button } from '../src/components/common/Button';
 import { Typography } from '../src/constants/Typography';
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const { colors, brand, mode, setMode } = useAppTheme();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   // Server health & base URL
   const [currentApiUrl, setCurrentApiUrl] = useState(api.getBaseUrl());
   const [inputApiUrl, setInputApiUrl] = useState(api.getBaseUrl());
+  const [apiUrlSource, setApiUrlSource] = useState(() => getApiBaseUrlSourceLabel());
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState<{ status: 'ok' | 'error'; message: string } | null>(null);
 
@@ -47,11 +49,17 @@ export default function SettingsScreen() {
   const [requestingToken, setRequestingToken] = useState(false);
   const [securityMsg, setSecurityMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    handlePingServer();
+  const computeSourceLabel = useCallback((resolvedUrl: string) => {
+    if (isExplicitEnvApiUrlConfigured()) {
+      return getApiBaseUrlSourceLabel();
+    }
+    if (resolvedUrl !== getDefaultApiBaseUrl()) {
+      return 'Override Manual (Tersimpan di Perangkat)';
+    }
+    return getApiBaseUrlSourceLabel();
   }, []);
 
-  const handlePingServer = async () => {
+  const handlePingServer = useCallback(async () => {
     setPinging(true);
     setPingResult(null);
     try {
@@ -68,21 +76,57 @@ export default function SettingsScreen() {
     } finally {
       setPinging(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const resolvedUrl = await api.init();
+        if (isMounted) {
+          setCurrentApiUrl(resolvedUrl);
+          setInputApiUrl(resolvedUrl);
+          setApiUrlSource(computeSourceLabel(resolvedUrl));
+        }
+        const res = await api.checkHealth();
+        if (isMounted) {
+          setPingResult({
+            status: 'ok',
+            message: `${res.service || 'TicketWave Backend'} — Status: ${res.status}`,
+          });
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setPingResult({
+            status: 'error',
+            message: err?.message || 'Server backend tidak dapat dijangkau.',
+          });
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [computeSourceLabel]);
 
   const handleSaveApiUrl = async () => {
     const trimmed = inputApiUrl.trim().replace(/\/+$/, '');
     await api.setBaseUrl(trimmed);
-    setCurrentApiUrl(api.getBaseUrl());
-    Alert.alert('Tersimpan', `Base URL API berhasil diatur ke: ${api.getBaseUrl()}`);
+    const updatedUrl = api.getBaseUrl();
+    setCurrentApiUrl(updatedUrl);
+    setApiUrlSource(computeSourceLabel(updatedUrl));
+    Alert.alert('Tersimpan', `Base URL API berhasil diatur ke: ${updatedUrl}`);
     handlePingServer();
   };
 
   const handleResetToDefaultUrl = async () => {
     await api.setBaseUrl(null);
-    setCurrentApiUrl(api.getBaseUrl());
-    setInputApiUrl(api.getBaseUrl());
-    Alert.alert('Reset', `Base URL API dikembalikan ke default: ${api.getBaseUrl()}`);
+    const defaultUrl = api.getBaseUrl();
+    setCurrentApiUrl(defaultUrl);
+    setInputApiUrl(defaultUrl);
+    setApiUrlSource(computeSourceLabel(defaultUrl));
+    Alert.alert('Reset', `Base URL API dikembalikan ke default: ${defaultUrl}`);
     handlePingServer();
   };
 
@@ -203,7 +247,7 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={[Typography.caption, styles.cardDesc, { color: colors.textSecondary }]}>
-            Konfigurasi endpoint untuk pengujian pada Android Emulator (10.0.2.2:5000) atau HP fisik via WiFi LAN.
+            Deteksi otomatis dari host LAN Expo Go (http://&lt;IP-laptop&gt;:5000/api), dengan override opsional EXPO_PUBLIC_API_URL, fallback Android Emulator (10.0.2.2:5000), atau input manual. URL aktif ({apiUrlSource}): {currentApiUrl}
           </Text>
 
           <Input

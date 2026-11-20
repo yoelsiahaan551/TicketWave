@@ -28,7 +28,7 @@ export default function AdminLayout({ children }) {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated || !user) {
-      const target = pathname ? `?redirect=${encodeURIComponent(pathname)}` : "";
+      const target = pathname ? `?next=${encodeURIComponent(pathname)}` : "";
       router.replace(`/login${target}`);
     } else if (!isAdmin) {
       if (user?.role === 'officer') {

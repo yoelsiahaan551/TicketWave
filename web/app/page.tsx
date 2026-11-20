@@ -4,6 +4,7 @@ import TrendingEvents from "@/app/components/landingPage/TrendingEvents";
 import Categories from "@/app/components/landingPage/Categories";
 import FeaturedEvent from "@/app/components/landingPage/FeaturedEvent";
 import PromoCountdown from "@/app/components/landingPage/PromoCountdown";
+import TicketSection from "@/app/components/landingPage/TicketSection";
 import ArtistSection from "@/app/components/landingPage/ArtistSection";
 import WhyChoose from "@/app/components/landingPage/WhyChoose";
 import Testimonial from "@/app/components/landingPage/Testimonial";
@@ -21,6 +22,7 @@ export default function Home() {
       <Categories />
       <FeaturedEvent />
       <PromoCountdown />
+      <TicketSection />
       <ArtistSection />
       <WhyChoose />
       <Testimonial />

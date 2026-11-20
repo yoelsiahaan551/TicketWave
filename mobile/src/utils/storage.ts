@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { SavedBookingEntry, User } from '../types';
 
 const STORAGE_KEYS = {
@@ -13,33 +15,65 @@ const STORAGE_KEYS = {
   THEME_MODE: 'ticketwave_theme_mode',
 };
 
-// Token Storage
+// Helper to determine if SecureStore is usable
+async function isSecureStoreAvailable(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  try {
+    return await SecureStore.isAvailableAsync();
+  } catch {
+    return false;
+  }
+}
+
+// Token Storage using Expo SecureStore (Hardware Keystore / Keychain)
 export async function getStoredAccessToken(): Promise<string | null> {
   try {
+    const isSecure = await isSecureStoreAvailable();
+    if (isSecure) {
+      return await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+    }
     return await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
   } catch {
-    return null;
+    return await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN).catch(() => null);
   }
 }
 
 export async function setStoredAccessToken(token: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
-  } catch {}
+    const isSecure = await isSecureStoreAvailable();
+    if (isSecure) {
+      await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, token);
+    } else {
+      await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+    }
+  } catch {
+    await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token).catch(() => {});
+  }
 }
 
 export async function getStoredRefreshToken(): Promise<string | null> {
   try {
+    const isSecure = await isSecureStoreAvailable();
+    if (isSecure) {
+      return await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+    }
     return await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
   } catch {
-    return null;
+    return await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN).catch(() => null);
   }
 }
 
 export async function setStoredRefreshToken(token: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
-  } catch {}
+    const isSecure = await isSecureStoreAvailable();
+    if (isSecure) {
+      await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, token);
+    } else {
+      await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+    }
+  } catch {
+    await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token).catch(() => {});
+  }
 }
 
 export async function getStoredUser(): Promise<User | null> {
@@ -59,6 +93,13 @@ export async function setStoredUser(user: User): Promise<void> {
 
 export async function clearAuthStorage(): Promise<void> {
   try {
+    const isSecure = await isSecureStoreAvailable();
+    if (isSecure) {
+      await Promise.allSettled([
+        SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN),
+        SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN),
+      ]);
+    }
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.ACCESS_TOKEN,
       STORAGE_KEYS.REFRESH_TOKEN,
@@ -114,18 +155,6 @@ export async function saveBookingEntry(entry: SavedBookingEntry): Promise<void> 
     await AsyncStorage.setItem(STORAGE_KEYS.BOOKING_ENTRIES, JSON.stringify([updated, ...filtered]));
   } catch (err) {
     console.warn('[Storage] Failed to save booking entry:', err);
-  }
-}
-
-export async function removeSavedBookingEntry(booking_code: string): Promise<void> {
-  if (!booking_code) return;
-  const code = booking_code.trim().toUpperCase();
-  try {
-    const current = await getSavedBookingEntries();
-    const filtered = current.filter((b) => b.booking_code !== code);
-    await AsyncStorage.setItem(STORAGE_KEYS.BOOKING_ENTRIES, JSON.stringify(filtered));
-  } catch (err) {
-    console.warn('[Storage] Failed to remove booking entry:', err);
   }
 }
 

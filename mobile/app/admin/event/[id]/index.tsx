@@ -14,8 +14,6 @@ import {
   Calendar,
   MapPin,
   Pencil,
-  Tag,
-  Ticket,
   Trash2,
   Upload,
 } from 'lucide-react-native';
@@ -54,22 +52,40 @@ export default function AdminEventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
-  const loadDetail = useCallback(async () => {
+  const refreshDetail = useCallback(async () => {
     if (!id) return;
     try {
-      setLoading(true);
       const res = await fetchAdminEventDetail(id);
       setEvent(res.data || null);
     } catch {
       setEvent(null);
-    } finally {
-      setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
+    if (!id) return;
+    let ignore = false;
+    fetchAdminEventDetail(id)
+      .then((res) => {
+        if (!ignore) {
+          setEvent(res.data || null);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setEvent(null);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [id]);
 
   const handleUploadMedia = async (type: 'poster' | 'banner') => {
     if (!id) return;
@@ -90,7 +106,7 @@ export default function AdminEventDetailScreen() {
     try {
       await uploadEventMedia(id, type, picked.assets[0].uri);
       Alert.alert('Sukses', `${type === 'poster' ? 'Poster' : 'Banner'} berhasil diunggah.`);
-      await loadDetail();
+      await refreshDetail();
     } catch (err: any) {
       Alert.alert('Gagal Upload', err?.message || `Gagal mengunggah ${type}.`);
     } finally {
@@ -103,7 +119,7 @@ export default function AdminEventDetailScreen() {
     try {
       await updateAdminEventStatus(id, st);
       Alert.alert('Status Diperbarui', `Status event diubah menjadi "${st}".`);
-      await loadDetail();
+      await refreshDetail();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Gagal mengubah status.');
     }

@@ -10,20 +10,16 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
   Check,
-  CheckCircle2,
   KeyRound,
   Lock,
   Mail,
   ShieldAlert,
-  Sparkles,
-  Ticket,
 } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { useAppTheme } from '../src/context/ThemeContext';
+import { BrandColors, PublicThemePalette } from '../src/constants/Colors';
 import { useAuth } from '../src/context/AuthContext';
 import { requestPasswordResetApi, resetPasswordApi } from '../src/api/endpoints';
 import { Header } from '../src/components/common/Header';
@@ -33,7 +29,9 @@ import { Typography } from '../src/constants/Typography';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { colors, brand, isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const colors = PublicThemePalette;
+  const brand = BrandColors;
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -50,6 +48,8 @@ export default function LoginScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const horizontalPad = Math.max(insets.left, insets.right, 16);
+
   const handleLogin = async () => {
     if (!email.trim() || !password) {
       setError('Masukkan alamat email dan password Anda.');
@@ -64,11 +64,16 @@ export default function LoginScreen() {
     if (res.success && res.user) {
       if (res.user.role === 'admin') {
         router.replace('/admin' as any);
+      } else if (res.user.role === 'officer') {
+        router.replace('/officer' as any);
       } else {
         router.replace('/(tabs)');
       }
     } else {
-      setError(res.message || 'Login gagal.');
+      setError(
+        res.message ||
+          'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.'
+      );
       setLoading(false);
     }
   };
@@ -90,13 +95,16 @@ export default function LoginScreen() {
       setResetMessage({
         type: 'success',
         text: res.data?.reset_token
-          ? 'Token reset berhasil dibuat dan telah terisi otomatis di bawah.'
+          ? 'Token reset berhasil dibuat dan telah terisi di bawah.'
           : res.message || 'Permintaan reset password berhasil diproses.',
       });
     } catch (err: any) {
       setResetMessage({
         type: 'error',
-        text: err?.message || 'Gagal mengirim permintaan reset password.',
+        text:
+          err?.status === 0
+            ? 'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.'
+            : err?.message || 'Gagal mengirim permintaan reset password.',
       });
     } finally {
       setResetLoading(false);
@@ -115,14 +123,17 @@ export default function LoginScreen() {
       const res = await resetPasswordApi(resetToken.trim(), newPassword);
       setResetMessage({
         type: 'success',
-        text: res.message || 'Password berhasil direset! Silakan login dengan password baru Anda.',
+        text: res.message || 'Password berhasil diperbarui. Silakan masuk dengan password baru.',
       });
       setResetToken('');
       setNewPassword('');
     } catch (err: any) {
       setResetMessage({
         type: 'error',
-        text: err?.message || 'Token tidak valid atau format password belum sesuai.',
+        text:
+          err?.status === 0
+            ? 'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.'
+            : err?.message || 'Token tidak valid atau format password belum sesuai.',
       });
     } finally {
       setResetLoading(false);
@@ -131,204 +142,252 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header
-        showBack
-        title="Masuk Akun"
-        subtitle="Akses akun TicketWave Anda"
-      />
+      {/* Full-Viewport Background Layer outside ScrollView to prevent any right/bottom clipping */}
+      <View style={styles.bgLayer} pointerEvents="none">
+        <Image
+          source={{ uri: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=1200' }}
+          style={styles.bgImage}
+          resizeMode="cover"
+        />
+        <View
+          style={[
+            styles.bgOverlay,
+            {
+              backgroundColor: 'rgba(11, 15, 23, 0.92)',
+            },
+          ]}
+        />
+      </View>
+
+      <Header showBack title="Masuk" showThemeToggle={false} forcePublicTheme />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 16}
+        style={styles.keyboardView}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingLeft: horizontalPad,
+              paddingRight: horizontalPad,
+              paddingBottom: Math.max(insets.bottom, 24) + 16,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Background visuals matching AuthLayout.jsx */}
-          <View style={styles.authWrapper}>
+          {/* Brand Title Block */}
+          <View style={styles.brandHero}>
             <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=1200' }}
-              style={styles.bgImage}
+              source={require('../assets/images/ticketwave.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
             />
-            <View style={styles.bgOverlay} />
+            <Text style={[styles.title, { color: colors.text }]}>
+              Selamat Datang Kembali
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Masuk untuk mengakses tiket dan pesanan Anda di TicketWave.
+            </Text>
+          </View>
 
-            {/* Cyan and blue glow blurs */}
-            <View style={styles.cyanGlow} pointerEvents="none" />
-            <View style={styles.blueGlow} pointerEvents="none" />
-
-            {/* Brand Header */}
-            <View style={styles.brandHero}>
-              <LinearGradient
-                colors={[brand.blueGradientStart, brand.blueGradientEnd]}
-                style={styles.logoBadge}
+          {/* Compact Login Form Card */}
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            {error && (
+              <View
+                style={[
+                  styles.errorAlert,
+                  { backgroundColor: brand.dangerSoft, borderColor: brand.danger },
+                ]}
               >
-                <Ticket size={28} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={[Typography.h1, styles.title]}>Welcome Back 👋</Text>
-              <Text style={[Typography.body, styles.subtitle]}>
-                Masuk untuk melanjutkan ke akun TicketWave Anda.
-              </Text>
-            </View>
-
-            {/* Form Card */}
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: isDark ? 'rgba(17, 24, 39, 0.90)' : colors.surface,
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : colors.border,
-                },
-              ]}
-            >
-              {error && (
-                <View
-                  style={[
-                    styles.errorAlert,
-                    { backgroundColor: brand.dangerSoft, borderColor: brand.danger },
-                  ]}
-                >
+                <View style={styles.errorTextRow}>
                   <ShieldAlert size={16} color={brand.danger} />
-                  <Text style={[Typography.caption, styles.errorAlertText, { color: brand.danger }]}>
+                  <Text style={[styles.errorAlertText, { color: brand.danger }]}>
                     {error}
                   </Text>
                 </View>
-              )}
-
-              <Input
-                label="Email Address"
-                placeholder="nama@email.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon={<Mail size={18} color={brand.primary} />}
-              />
-
-              <Input
-                label="Password"
-                placeholder="Masukkan password Anda"
-                value={password}
-                onChangeText={setPassword}
-                isPassword
-                leftIcon={<Lock size={18} color={brand.primary} />}
-              />
-
-              <View style={styles.rememberForgotRow}>
                 <TouchableOpacity
-                  style={styles.rememberBox}
-                  activeOpacity={0.8}
-                  onPress={() => setRememberMe(!rememberMe)}
+                  activeOpacity={0.75}
+                  onPress={handleLogin}
+                  style={[styles.retryBtn, { borderColor: brand.danger }]}
                 >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      {
-                        borderColor: rememberMe ? brand.primary : colors.border,
-                        backgroundColor: rememberMe ? brand.primary : 'transparent',
-                      },
-                    ]}
-                  >
-                    {rememberMe && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
-                  </View>
-                  <Text style={[Typography.caption, { color: colors.textSecondary }]}>
-                    Ingat saya
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setShowForgot(!showForgot)}>
-                  <Text style={[Typography.caption, { color: brand.primary, fontWeight: '700' }]}>
-                    {showForgot ? 'Tutup Reset' : 'Lupa Password?'}
+                  <Text style={[styles.retryBtnText, { color: brand.danger }]}>
+                    Coba Lagi
                   </Text>
                 </TouchableOpacity>
               </View>
+            )}
 
-              {/* Expandable Forgot Password Box */}
-              {showForgot && (
+            <Input
+              label="Email"
+              placeholder="nama@email.com"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (error) setError(null);
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              forcePublicTheme
+              leftIcon={<Mail size={17} color={colors.textMuted} />}
+            />
+
+            <Input
+              label="Password"
+              placeholder="Masukkan password Anda"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (error) setError(null);
+              }}
+              isPassword
+              forcePublicTheme
+              leftIcon={<Lock size={17} color={colors.textMuted} />}
+            />
+
+            <View style={styles.rememberForgotRow}>
+              <TouchableOpacity
+                style={styles.rememberBox}
+                activeOpacity={0.8}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
                 <View
                   style={[
-                    styles.forgotBox,
-                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                    styles.checkbox,
+                    {
+                      borderColor: rememberMe ? brand.primary : colors.borderStrong,
+                      backgroundColor: rememberMe ? brand.primary : 'transparent',
+                    },
                   ]}
                 >
-                  <View style={styles.forgotHeader}>
-                    <KeyRound size={16} color={brand.primary} />
-                    <Text style={[Typography.h4, { color: colors.text }]}>Reset Password</Text>
-                  </View>
-
-                  <Input
-                    label="Email Terdaftar"
-                    placeholder="nama@email.com"
-                    value={resetEmail || email}
-                    onChangeText={setResetEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <Button
-                    title="Minta Token Reset"
-                    onPress={handleRequestReset}
-                    loading={resetLoading}
-                    variant="outline"
-                    size="sm"
-                    style={{ marginBottom: 12 }}
-                  />
-
-                  <Input
-                    label="Token Reset dari Server"
-                    placeholder="Paste token di sini..."
-                    value={resetToken}
-                    onChangeText={setResetToken}
-                  />
-                  <Input
-                    label="Password Baru"
-                    placeholder="Minimal 8 karakter..."
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    isPassword
-                  />
-                  <Button
-                    title="Simpan Password Baru"
-                    onPress={handleConfirmReset}
-                    loading={resetLoading}
-                    size="sm"
-                  />
-
-                  {resetMessage && (
-                    <Text
-                      style={[
-                        Typography.caption,
-                        styles.resetMsgText,
-                        { color: resetMessage.type === 'error' ? brand.danger : brand.success },
-                      ]}
-                    >
-                      {resetMessage.text}
-                    </Text>
-                  )}
+                  {rememberMe && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
                 </View>
-              )}
+                <Text style={[Typography.caption, { color: colors.textSecondary }]}>
+                  Ingat saya
+                </Text>
+              </TouchableOpacity>
 
-              <Button
-                title="Masuk Sekarang"
-                onPress={handleLogin}
-                loading={loading}
-                size="lg"
-                variant="gradient"
-                style={{ marginTop: 14 }}
-              />
-            </View>
-
-            {/* Bottom Link to Register */}
-            <View style={styles.registerWrap}>
-              <Text style={[Typography.body, { color: 'rgba(255, 255, 255, 0.75)' }]}>
-                Belum punya akun TicketWave?{' '}
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/register')}>
-                <Text style={[Typography.body, { color: '#22D3EE', fontWeight: '800' }]}>
-                  Daftar Sekarang
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => setShowForgot(!showForgot)}
+                style={styles.forgotToggleBtn}
+              >
+                <Text style={[Typography.caption, { color: colors.textSecondary, fontWeight: '600' }]}>
+                  {showForgot ? 'Tutup Reset' : 'Lupa password?'}
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Expandable Forgot Password Box */}
+            {showForgot && (
+              <View
+                style={[
+                  styles.forgotBox,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.forgotHeader}>
+                  <KeyRound size={15} color={brand.cyan} />
+                  <Text style={[Typography.bodyBold, { color: colors.text }]}>
+                    Reset Password
+                  </Text>
+                </View>
+
+                <Input
+                  label="Email Terdaftar"
+                  placeholder="nama@email.com"
+                  value={resetEmail || email}
+                  onChangeText={setResetEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  forcePublicTheme
+                />
+                <Button
+                  title="Kirim Permintaan Reset"
+                  onPress={handleRequestReset}
+                  loading={resetLoading}
+                  variant="secondary"
+                  size="sm"
+                  forcePublicTheme
+                  style={{ marginBottom: 12 }}
+                />
+
+                <Input
+                  label="Token Reset"
+                  placeholder="Masukkan token reset"
+                  value={resetToken}
+                  onChangeText={setResetToken}
+                  autoCapitalize="none"
+                  forcePublicTheme
+                />
+                <Input
+                  label="Password Baru"
+                  placeholder="Minimal 8 karakter"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  isPassword
+                  forcePublicTheme
+                />
+                <Button
+                  title="Simpan Password Baru"
+                  onPress={handleConfirmReset}
+                  loading={resetLoading}
+                  variant="primary"
+                  size="sm"
+                  forcePublicTheme
+                />
+
+                {resetMessage && (
+                  <Text
+                    style={[
+                      Typography.caption,
+                      styles.resetMsgText,
+                      { color: resetMessage.type === 'error' ? brand.danger : brand.success },
+                    ]}
+                  >
+                    {resetMessage.text}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            <Button
+              title="Masuk"
+              onPress={handleLogin}
+              loading={loading}
+              size="md"
+              variant="primary"
+              forcePublicTheme
+              style={styles.submitBtn}
+            />
+          </View>
+
+          {/* Bottom Link to Register */}
+          <View style={styles.registerWrap}>
+            <Text style={[Typography.body, { color: colors.textSecondary }]}>
+              Belum punya akun?{' '}
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={() => router.push('/register')}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+            >
+              <Text style={[Typography.bodyBold, { color: brand.cyan }]}>
+                Daftar Sekarang
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -339,126 +398,124 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  authWrapper: {
-    position: 'relative',
-    minHeight: '100%',
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
+  bgLayer: {
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   bgImage: {
     ...StyleSheet.absoluteFill,
-    width: '100%',
-    height: '100%',
   },
   bgOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(9, 13, 22, 0.90)',
   },
-  cyanGlow: {
-    position: 'absolute',
-    top: -50,
-    left: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(6, 182, 212, 0.20)',
+  keyboardView: {
+    flex: 1,
+    width: '100%',
   },
-  blueGlow: {
-    position: 'absolute',
-    bottom: 50,
-    right: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(0, 128, 242, 0.20)',
+  scrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 20,
   },
   brandHero: {
     alignItems: 'center',
-    marginBottom: 24,
-    position: 'relative',
-    zIndex: 1,
+    marginBottom: 18,
   },
-  logoBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#0080F2',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
+  logoImage: {
+    width: 48,
+    height: 48,
+    marginBottom: 12,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    lineHeight: 32,
-    marginBottom: 6,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.72)',
-    fontSize: 14,
+    fontSize: 13.5,
+    lineHeight: 19,
     textAlign: 'center',
+    maxWidth: 320,
   },
   card: {
-    borderRadius: 28,
+    width: '100%',
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 22,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 6,
-    position: 'relative',
-    zIndex: 1,
+    padding: 18,
   },
   errorAlert: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 10,
     padding: 12,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  errorTextRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   errorAlertText: {
     flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  retryBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtnText: {
+    fontSize: 11.5,
     fontWeight: '700',
   },
   rememberForgotRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 12,
+    marginTop: 2,
+    marginBottom: 10,
   },
   rememberBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: 44,
+  },
+  forgotToggleBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 5,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   forgotBox: {
-    marginTop: 10,
-    marginBottom: 14,
+    marginTop: 6,
+    marginBottom: 12,
     padding: 14,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
   },
   forgotHeader: {
@@ -469,14 +526,16 @@ const styles = StyleSheet.create({
   },
   resetMsgText: {
     marginTop: 10,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  submitBtn: {
+    marginTop: 6,
   },
   registerWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
-    position: 'relative',
-    zIndex: 1,
+    marginTop: 20,
+    minHeight: 44,
   },
 });

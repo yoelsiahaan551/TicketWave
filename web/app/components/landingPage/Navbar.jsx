@@ -27,9 +27,18 @@ export default function Navbar() {
       setScroll(window.scrollY > 30);
     };
 
+    if (window.location.pathname === "/" && window.location.search) {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("order_id") || params.get("booking_code") || "";
+      if (/^TKTW-/i.test(orderId.trim())) {
+        router.replace(`/payment/finish${window.location.search}`);
+        return undefined;
+      }
+    }
+
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [router]);
 
   const dashboardHref =
     mounted && isAuthenticated

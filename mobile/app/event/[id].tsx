@@ -51,15 +51,15 @@ export default function EventDetailScreen() {
 
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState<number>(0);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    setError(null);
+    let ignore = false;
 
     fetchPublicEventDetail(id)
       .then((res) => {
-        if (res.data) {
+        if (!ignore && res.data) {
           setEvent(res.data.event);
           setAgency(res.data.agency || null);
           setLineup(res.data.lineup || []);
@@ -73,15 +73,31 @@ export default function EventDetailScreen() {
             setSelectedTicketId(firstAvail.id);
             setQuantity(1);
           }
+          setError(null);
         }
       })
       .catch((err: any) => {
-        setError(err?.message || 'Gagal memuat detail event.');
+        if (!ignore) {
+          const msg = err?.message || 'Gagal memuat detail event.';
+          if (err?.status === 404 || msg.includes('Event not found')) {
+            setError(`Event dengan ID '${id}' tidak ditemukan dalam katalog publik TicketWave. Event mungkin telah berakhir atau belum dipublikasikan.`);
+          } else if (err?.status === 500) {
+            setError(`Kesalahan Server (HTTP 500): Terjadi kendala pemrosesan data event pada backend (BLOCKED-BY-BACKEND). Pesan: ${msg}`);
+          } else {
+            setError(msg);
+          }
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       });
-  }, [id]);
+
+    return () => {
+      ignore = true;
+    };
+  }, [id, retryKey]);
 
   const selectedTicket = ticketTypes.find((t) => t.id === selectedTicketId) || null;
 
@@ -160,16 +176,24 @@ export default function EventDetailScreen() {
 
   if (error || !event) {
     return (
-      <View style={[styles.centerWrap, { backgroundColor: colors.background }]}>
-        <Text style={[styles.errorTitle, { color: brand.danger }]}>Gagal Memuat Event</Text>
-        <Text style={[styles.errorDesc, { color: colors.textSecondary }]}>{error}</Text>
-        <Button
-          title="Kembali"
-          onPress={() => router.back()}
-          variant="outline"
-          size="md"
-          style={{ marginTop: 14 }}
-        />
+      <View style={[styles.centerWrap, { backgroundColor: colors.background, paddingHorizontal: 24 }]}>
+        <Text style={[styles.errorTitle, { color: brand.danger, textAlign: 'center' }]}>Gagal Memuat Event</Text>
+        <Text style={[styles.errorDesc, { color: colors.textSecondary, textAlign: 'center', marginTop: 8 }]}>{error}</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+          <Button
+            title="Coba Lagi"
+            onPress={() => setRetryKey((k) => k + 1)}
+            size="md"
+            style={{ flex: 1 }}
+          />
+          <Button
+            title="Kembali"
+            onPress={() => router.back()}
+            variant="outline"
+            size="md"
+            style={{ flex: 1 }}
+          />
+        </View>
       </View>
     );
   }
@@ -269,32 +293,40 @@ export default function EventDetailScreen() {
           </View>
 
           {/* Festival Lineup (if festival) */}
-          {event.event_type === 'festival' && lineup.length > 0 && (
+          {event.event_type === 'festival' && (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Sparkles size={18} color={brand.purple} />
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Lineup Festival</Text>
               </View>
-              <View style={[styles.lineupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                {lineup.map((item, idx) => (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.lineupItem,
-                      idx < lineup.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
-                    ]}
-                  >
-                    <View style={[styles.dayPill, { backgroundColor: brand.purpleSoft }]}>
-                      <Text style={[styles.dayPillText, { color: brand.purple }]}>
-                        Day {item.day_number || item.day || 1}
+              {lineup.length > 0 ? (
+                <View style={[styles.lineupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  {lineup.map((item, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.lineupItem,
+                        idx < lineup.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                      ]}
+                    >
+                      <View style={[styles.dayPill, { backgroundColor: brand.purpleSoft }]}>
+                        <Text style={[styles.dayPillText, { color: brand.purple }]}>
+                          Day {item.day_number || item.day || 1}
+                        </Text>
+                      </View>
+                      <Text style={[styles.artistLineupName, { color: colors.text }]}>
+                        {item.artist_name || item.name}
                       </Text>
                     </View>
-                    <Text style={[styles.artistLineupName, { color: colors.text }]}>
-                      {item.artist_name || item.name}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={[styles.emptyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+                    Lineup musisi & jadwal penampil festival akan segera diumumkan oleh promotor.
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 

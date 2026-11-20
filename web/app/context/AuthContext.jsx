@@ -67,7 +67,9 @@ export function AuthProvider({ children }) {
       setUser(null);
       setLoading(false);
     };
-    const unsubscribe = api.subscribeSessionCleared(onSessionCleared);
+    const unsubscribe = api.subscribeSessionCleared(onSessionCleared, () => {
+      fetchCurrentUser();
+    });
     const t = setTimeout(() => {
       fetchCurrentUser();
     }, 0);
@@ -96,12 +98,13 @@ export function AuthProvider({ children }) {
         const userData = payload.user || (payload.email ? payload : null);
 
         if (access_token && userData) {
-          // Store tokens (default sessionStorage per-tab; localStorage only if rememberMe=true)
-          api.setAccessToken(access_token, rememberMe);
-          if (refresh_token) {
-            api.setRefreshToken(refresh_token, rememberMe);
-          }
-          api.setStoredUser(userData, rememberMe);
+          // Store tokens in single isolated store (purge any prior role session from local/session storage)
+          api.setSession({
+            accessToken: access_token,
+            refreshToken: refresh_token || null,
+            userData,
+            remember: rememberMe,
+          });
           setUser(userData);
           setLoading(false);
 

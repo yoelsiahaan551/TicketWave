@@ -8,17 +8,18 @@ import {
   CreditCard,
   Search,
   RefreshCw,
-  Trash2,
   Ticket,
+  QrCode,
   Info,
   ArrowRight,
   Clock,
 } from "lucide-react";
 import api from "@/app/lib/api";
+import TicketQrModal from "@/app/components/user/TicketQrModal";
+import { getTicketDisplayStatus } from "@/app/lib/payment";
 import {
   fetchAllSavedBookings,
   saveBookingEntry,
-  removeBookingEntry,
 } from "@/app/lib/bookingStorage";
 
 const statusStyles = {
@@ -26,6 +27,7 @@ const statusStyles = {
   pending_payment: "border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
   cancelled: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
   expired: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
+  failed: "border border-rose-200/60 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300",
 };
 
 const statusLabels = {
@@ -33,6 +35,7 @@ const statusLabels = {
   pending_payment: "Menunggu Pembayaran",
   cancelled: "Dibatalkan",
   expired: "Kadaluarsa",
+  failed: "Gagal",
 };
 
 export default function PesananPage() {
@@ -45,6 +48,7 @@ export default function PesananPage() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState(null);
   const [cancellingCode, setCancellingCode] = useState(null);
+  const [qrModalData, setQrModalData] = useState(null);
 
   const loadBookings = useCallback(async () => {
     await Promise.resolve();
@@ -101,13 +105,6 @@ export default function PesananPage() {
     } finally {
       setLookupLoading(false);
     }
-  };
-
-  const handleRemoveFromDevice = (code) => {
-    removeBookingEntry(code);
-    setBookings((prev) =>
-      prev.filter((item) => item.booking?.booking_code !== code)
-    );
   };
 
   const handleCancelOrder = async (bookingCode) => {
@@ -291,7 +288,22 @@ export default function PesananPage() {
         {/* Bookings List */}
         {!loading && filteredBookings.length > 0 && (
           <div className="mt-6 space-y-3.5">
-            {filteredBookings.map(({ booking, event, ticket_type }) => (
+            {filteredBookings.map(({ booking, event, ticket_type, tickets }) => {
+              const modalTickets = (tickets || []).map((t) => ({
+                ...t,
+                status: getTicketDisplayStatus(booking, t),
+                booking_code: booking.booking_code,
+                booking_status: booking.status,
+                buyer_name: booking.buyer_name,
+                event_name: event?.name || "Event TicketWave",
+                ticket_type_name: ticket_type?.name || "Standard",
+              }));
+              const validTicket = modalTickets.find(
+                (t) => t.status === "valid" && Boolean(t.qr_token)
+              );
+              const usedTicket = modalTickets.find((t) => t.status === "used");
+
+              return (
               <div
                 key={booking.booking_code}
                 className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900"
@@ -378,14 +390,36 @@ export default function PesananPage() {
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFromDevice(booking.booking_code)}
-                        title="Hapus dari daftar perangkat ini"
-                        className="rounded-xl border border-slate-200/80 p-2 text-slate-400 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-white"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {booking.status === "paid" && validTicket && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQrModalData({
+                              tickets: modalTickets,
+                              initialTicketCode: validTicket.ticket_code,
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#0080f2] bg-blue-50/60 px-3.5 py-1.5 text-xs font-medium text-[#0080f2] transition hover:bg-blue-100/70 dark:border-blue-500/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                        >
+                          <QrCode size={13} />
+                          Tampilkan QR
+                        </button>
+                      )}
+
+                      {booking.status === "paid" && !validTicket && usedTicket && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQrModalData({
+                              tickets: modalTickets,
+                              initialTicketCode: usedTicket.ticket_code,
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/70 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100/70 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                        >
+                          Status: Sudah Digunakan
+                        </button>
+                      )}
 
                       <Link
                         href={`/user/pesanan/${booking.booking_code}`}
@@ -398,7 +432,8 @@ export default function PesananPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -423,6 +458,14 @@ export default function PesananPage() {
             </Link>
           </div>
         )}
+
+        <TicketQrModal
+          isOpen={Boolean(qrModalData)}
+          tickets={qrModalData?.tickets || []}
+          initialTicketCode={qrModalData?.initialTicketCode}
+          showOrderLink
+          onClose={() => setQrModalData(null)}
+        />
       </div>
     </div>
   );

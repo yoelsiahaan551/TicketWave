@@ -1,36 +1,89 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
+import {
+  extractLanDevHost,
+  isTunnelDevServerUri,
+  resolveDefaultApiBaseUrl,
+} from './apiUrlResolver';
+
+function isDevRuntime(): boolean {
+  return typeof __DEV__ === 'boolean'
+    ? __DEV__
+    : process.env.NODE_ENV !== 'production';
+}
+
+function getWebHostname(): string | null {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return window.location?.hostname ?? null;
+  }
+  return null;
+}
+
+function collectDevServerUris(): (string | null | undefined)[] {
+  const sourceCode = (
+    NativeModules as { SourceCode?: { scriptURL?: string } } | undefined
+  )?.SourceCode;
+  const anyConstants = Constants as Record<string, any>;
+
+  return [
+    sourceCode?.scriptURL,
+    Constants.expoConfig?.hostUri,
+    anyConstants.manifest2?.extra?.expoClient?.hostUri,
+    anyConstants.manifest2?.launchAsset?.url,
+    anyConstants.expoGoConfig?.debuggerHost,
+    anyConstants.manifest?.debuggerHost,
+    Constants.experienceUrl,
+    Constants.linkingUri,
+  ];
+}
+
+export function isExplicitEnvApiUrlConfigured(): boolean {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  return Boolean(envUrl && envUrl.trim());
+}
 
 /**
  * Resolves the default backend API URL depending on runtime environment:
- * - Physical device via Expo Go: extracts host LAN IP from Expo Constants
- * - Android Emulator: 10.0.2.2:5000
- * - iOS Simulator / Web: 127.0.0.1:5000
+ * - Explicit override (`EXPO_PUBLIC_API_URL`) for production builds, `--tunnel`, or custom hosts
+ * - Physical device via Expo Go (LAN): uses the active Metro dev server host IP (`http://<IP-laptop>:5000/api`)
+ * - Android Emulator: 10.0.2.2:5000/api
+ * - iOS Simulator / Web: 127.0.0.1:5000/api
  */
 export function getDefaultApiBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
+  const isDev = isDevRuntime();
+  return resolveDefaultApiBaseUrl({
+    envUrl: process.env.EXPO_PUBLIC_API_URL,
+    isDev,
+    platformOS: Platform.OS,
+    devServerUris: isDev ? collectDevServerUris() : [],
+    webHostname: getWebHostname(),
+  });
+}
+
+export function getApiBaseUrlSourceLabel(): string {
+  if (isExplicitEnvApiUrlConfigured()) {
+    return 'Override EXPO_PUBLIC_API_URL';
   }
 
-  // Try to detect LAN host from Expo dev server (works on physical devices via Expo Go)
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
-    (Constants as any).manifest?.debuggerHost;
-
-  if (hostUri && typeof hostUri === 'string') {
-    const host = hostUri.split(':')[0];
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `http://${host}:5000/api`;
+  const isDev = isDevRuntime();
+  if (isDev) {
+    const devUris = collectDevServerUris();
+    if (
+      devUris.some((uri) => Boolean(extractLanDevHost(uri))) ||
+      (Platform.OS === 'web' && Boolean(extractLanDevHost(getWebHostname())))
+    ) {
+      return 'Otomatis dari host LAN Expo Go';
+    }
+    if (devUris.some((uri) => isTunnelDevServerUri(uri))) {
+      return 'Mode Tunnel (memerlukan EXPO_PUBLIC_API_URL atau URL manual)';
     }
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000/api';
+    return 'Fallback Emulator Android (10.0.2.2)';
   }
 
-  return 'http://127.0.0.1:5000/api';
+  return 'Fallback Lokal (127.0.0.1)';
 }
 
 export const FALLBACK_EVENT_IMAGE =

@@ -11,6 +11,15 @@ function hasCode(ticket) {
   return typeof ticket?.ticket_code === 'string' && Boolean(ticket.ticket_code.trim());
 }
 
+export function formatTicketCodeForDisplay(rawCode, ticketCode = null) {
+  if (typeof ticketCode === 'string' && ticketCode.trim()) return ticketCode.trim();
+  const clean = typeof rawCode === 'string' ? rawCode.trim() : '';
+  if (!clean) return '—';
+  if (/^TKT-[A-Z0-9]{4,20}$/i.test(clean)) return clean.toUpperCase();
+  if (clean.length <= 8) return '••••';
+  return `${clean.slice(0, 4)}••••${clean.slice(-4)}`;
+}
+
 function failure(error, code) {
   const details = error?.data?.errors || {};
   const rejected = [400, 404, 409].includes(error?.status) &&

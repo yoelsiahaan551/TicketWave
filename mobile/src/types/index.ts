@@ -5,6 +5,8 @@ export interface User {
   phone?: string;
   role: 'admin' | 'officer' | 'user';
   email_verified: boolean;
+  assigned_gate?: string;
+  shift?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -133,11 +135,16 @@ export interface TicketItem {
   ticket_type_name?: string;
 }
 
+export type PaymentMethodId = 'transfer_bank' | 'virtual_account' | 'qris';
+
 export type BookingStatus =
   | 'pending_payment'
   | 'paid'
   | 'cancelled'
   | 'expired'
+  | 'denied'
+  | 'refunded'
+  | 'failed'
   | 'lunas'
   | 'dibatalkan'
   | (string & {});
@@ -179,6 +186,21 @@ export interface CheckoutPayload {
   buyer_email: string;
   buyer_phone: string;
   recipient_email?: string;
+  payment_method: PaymentMethodId;
+}
+
+export interface SyncPaymentStatusResponse {
+  booking: Booking;
+  transaction?: {
+    id: number;
+    status: string;
+    payment_method?: string | null;
+    external_id?: string | null;
+    paid_at?: string | null;
+  } | null;
+  synced?: boolean;
+  midtrans_transaction_status?: string;
+  message?: string;
 }
 
 export interface SavedBookingEntry {
@@ -194,4 +216,43 @@ export interface ApiResponse<T = any> {
   message?: string;
   data?: T;
   errors?: Record<string, string[] | string> | null;
+}
+
+// ---------- OFFICER SCAN TYPES ----------
+export interface OfficerScanStats {
+  checked_in: number;
+  valid_or_used: number;
+  total_checked?: number;
+  rejected_count?: number;
+}
+
+export type ScanTicketStatus =
+  | 'VALID'
+  | 'SUDAH DIGUNAKAN'
+  | 'DIBATALKAN'
+  | 'TIDAK VALID'
+  | 'GAGAL MEMERIKSA'
+  | 'CHECK-IN SELESAI'
+  | 'CHECK-IN BELUM TERKONFIRMASI'
+  | string;
+
+export interface ScanResult {
+  success: boolean;
+  status: ScanTicketStatus;
+  code?: string;
+  message?: string;
+  ticket?: Partial<TicketItem> | null;
+  first_checked_in_at?: string;
+  first_checked_in_by?: string;
+  server_verified?: boolean;
+}
+
+export interface ScanHistoryItem {
+  id: string;
+  ticket_code: string;
+  event_name?: string;
+  buyer_name?: string;
+  ticket_type_name?: string;
+  scanned_at?: string;
+  status?: string;
 }

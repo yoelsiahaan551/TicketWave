@@ -15,8 +15,8 @@ export default function OfficerGuard({ children }) {
     if (loading) return;
 
     if (!isAuthenticated || !user) {
-      const redirectUrl = pathname ? `?redirect=${encodeURIComponent(pathname)}` : "";
-      router.replace(`/login${redirectUrl}`);
+      const nextUrl = pathname ? `?next=${encodeURIComponent(pathname)}` : "";
+      router.replace(`/login${nextUrl}`);
     }
   }, [loading, isAuthenticated, user, router, pathname]);
 

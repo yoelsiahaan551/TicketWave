@@ -9,6 +9,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
+import { BrandColors, PublicThemePalette } from '../../constants/Colors';
 import { useAppTheme } from '../../context/ThemeContext';
 
 interface InputProps extends TextInputProps {
@@ -17,6 +18,7 @@ interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
   rightElement?: React.ReactNode;
   isPassword?: boolean;
+  forcePublicTheme?: boolean;
   containerStyle?: ViewStyle;
 }
 
@@ -26,11 +28,15 @@ export function Input({
   leftIcon,
   rightElement,
   isPassword = false,
+  forcePublicTheme = false,
   containerStyle,
   style,
   ...props
 }: InputProps) {
-  const { colors, brand, isDark } = useAppTheme();
+  const appTheme = useAppTheme();
+  const isDark = forcePublicTheme ? true : appTheme.isDark;
+  const colors = forcePublicTheme ? PublicThemePalette : appTheme.colors;
+  const brand = forcePublicTheme ? BrandColors : appTheme.brand;
   const [focused, setFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -43,20 +49,12 @@ export function Input({
         style={[
           styles.inputWrapper,
           {
-            backgroundColor: isDark ? colors.surface : colors.surface,
+            backgroundColor: isDark ? colors.surfaceElevated : colors.surface,
             borderColor: error
               ? brand.danger
               : focused
-              ? brand.primary
+              ? brand.cyan
               : colors.border,
-          },
-          focused && {
-            borderWidth: 1.5,
-            shadowColor: brand.primary,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.16,
-            shadowRadius: 6,
-            elevation: 2,
           },
         ]}
       >
@@ -106,21 +104,21 @@ export function Input({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   label: {
     fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 8,
+    fontWeight: '600',
+    marginBottom: 6,
     letterSpacing: -0.1,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    height: 52,
+    height: 48,
   },
   leftIcon: {
     marginRight: 10,
@@ -134,14 +132,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   rightBtn: {
-    marginLeft: 8,
+    marginLeft: 6,
+    minWidth: 36,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorText: {
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 6,
-    marginLeft: 4,
+    marginTop: 5,
+    marginLeft: 2,
   },
 });

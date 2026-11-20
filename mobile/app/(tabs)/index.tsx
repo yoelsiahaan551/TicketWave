@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -22,7 +22,6 @@ import {
   Search,
   Sparkles,
   Ticket,
-  TrendingUp,
 } from 'lucide-react-native';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
@@ -34,7 +33,6 @@ import { Header } from '../../src/components/common/Header';
 import { EventCard } from '../../src/components/event/EventCard';
 import { Button } from '../../src/components/common/Button';
 import { EventCardSkeleton } from '../../src/components/common/Skeleton';
-import { Typography } from '../../src/constants/Typography';
 
 export default function UserHomeScreen() {
   const router = useRouter();
@@ -52,38 +50,64 @@ export default function UserHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    try {
-      setError(null);
-      const [eventsRes, citiesRes] = await Promise.allSettled([
-        fetchPublicEvents({ per_page: 8 }),
-        fetchPublicCities(),
-      ]);
-
-      if (eventsRes.status === 'fulfilled' && eventsRes.value?.data) {
-        const items = eventsRes.value.data.items || [];
-        setEvents(items);
-        setTotalEvents(eventsRes.value.data.total_items || items.length);
-      }
-
-      if (citiesRes.status === 'fulfilled' && citiesRes.value?.data?.cities) {
-        setCitiesCount(citiesRes.value.data.cities.length);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Gagal memuat katalog event.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let ignore = false;
+    Promise.allSettled([
+      fetchPublicEvents({ per_page: 8 }),
+      fetchPublicCities(),
+    ])
+      .then(([eventsRes, citiesRes]) => {
+        if (ignore) return;
+        if (eventsRes.status === 'fulfilled' && eventsRes.value?.data) {
+          const items = eventsRes.value.data.items || [];
+          setEvents(items);
+          setTotalEvents(eventsRes.value.data.total_items || items.length);
+        }
+        if (citiesRes.status === 'fulfilled' && citiesRes.value?.data?.cities) {
+          setCitiesCount(citiesRes.value.data.cities.length);
+        }
+        setError(null);
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setError(err?.message || 'Gagal memuat katalog event.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    Promise.allSettled([
+      fetchPublicEvents({ per_page: 8 }),
+      fetchPublicCities(),
+    ])
+      .then(([eventsRes, citiesRes]) => {
+        if (eventsRes.status === 'fulfilled' && eventsRes.value?.data) {
+          const items = eventsRes.value.data.items || [];
+          setEvents(items);
+          setTotalEvents(eventsRes.value.data.total_items || items.length);
+        }
+        if (citiesRes.status === 'fulfilled' && citiesRes.value?.data?.cities) {
+          setCitiesCount(citiesRes.value.data.cities.length);
+        }
+        setError(null);
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Gagal memuat katalog event.');
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
   };
 
   const handleSearchSubmit = () => {
@@ -101,7 +125,6 @@ export default function UserHomeScreen() {
   };
 
   const featured = events[0] || null;
-  const onSaleEvents = events.filter((e) => e.status === 'on_sale' || !e.status);
   const upcomingEvents = events.slice(1);
 
   // Lineup items dynamically derived from real events matching Next.js FavoriteArtist.jsx
@@ -303,7 +326,7 @@ export default function UserHomeScreen() {
               <Text style={[styles.errorDesc, { color: colors.textSecondary }]}>{error}</Text>
               <Button
                 title="Coba Muat Ulang"
-                onPress={loadData}
+                onPress={onRefresh}
                 size="sm"
                 style={{ marginTop: 12, alignSelf: 'center' }}
               />

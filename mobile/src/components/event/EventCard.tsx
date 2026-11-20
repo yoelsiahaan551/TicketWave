@@ -10,6 +10,7 @@ import {
 import { ArrowRight, CalendarDays, Heart, MapPin, Music2, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BrandColors, PublicThemePalette } from '../../constants/Colors';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { EventItem } from '../../types';
@@ -20,11 +21,14 @@ interface EventCardProps {
   event: EventItem;
   style?: ViewStyle;
   compact?: boolean;
+  forcePublicTheme?: boolean;
 }
 
-export function EventCard({ event, style, compact = false }: EventCardProps) {
+export function EventCard({ event, style, compact = false, forcePublicTheme = false }: EventCardProps) {
   const router = useRouter();
-  const { colors, brand, isDark } = useAppTheme();
+  const appTheme = useAppTheme();
+  const colors = forcePublicTheme ? PublicThemePalette : appTheme.colors;
+  const brand = forcePublicTheme ? BrandColors : appTheme.brand;
   const { isEventFavorite, toggleEvent } = useFavorites();
 
   const isFav = isEventFavorite(event.id);
@@ -68,7 +72,7 @@ export function EventCard({ event, style, compact = false }: EventCardProps) {
             <Text style={styles.typeBadgeText}>
               {event.event_type === 'festival'
                 ? `Festival (${event.days_count || 1}H)`
-                : 'Single Event'}
+                : 'Konser'}
             </Text>
           </View>
 
@@ -116,14 +120,14 @@ export function EventCard({ event, style, compact = false }: EventCardProps) {
 
         <View style={styles.metaCol}>
           <View style={styles.metaRow}>
-            <CalendarDays size={14} color={brand.primary} />
+            <CalendarDays size={14} color={colors.textMuted} />
             <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {dateText}
             </Text>
           </View>
 
           <View style={styles.metaRow}>
-            <MapPin size={14} color={brand.primary} />
+            <MapPin size={14} color={colors.textMuted} />
             <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {locationText}
             </Text>
@@ -159,18 +163,14 @@ export function EventCard({ event, style, compact = false }: EventCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: 16,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    marginBottom: 14,
   },
   cardCompact: {
-    width: 250,
-    marginRight: 14,
+    width: 248,
+    marginRight: 12,
     marginBottom: 0,
   },
   imageContainer: {

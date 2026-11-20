@@ -336,6 +336,32 @@ export default function RegisterPage() {
     setRegisteredNotice(null);
 
     // Validation
+    if (!name || name.trim().length < 2 || name.trim().length > 120) {
+      showError("Nama lengkap harus terdiri dari 2 hingga 120 karakter");
+      setLoading(false);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email.trim())) {
+      showError("Format email tidak valid");
+      setLoading(false);
+      return;
+    }
+
+    const cleanedPhone = phone ? phone.replace(/\D/g, "") : "";
+    if (!phone || cleanedPhone.length < 10 || cleanedPhone.length > 20) {
+      showError("Nomor telepon harus terdiri dari 10 hingga 20 digit angka");
+      setLoading(false);
+      return;
+    }
+
+    if (!password || password.length < 8) {
+      showError("Password minimal harus 8 karakter");
+      setLoading(false);
+      return;
+    }
+
     if (password !== confirmPassword) {
       showError("Password dan Confirm Password tidak sama");
       setLoading(false);

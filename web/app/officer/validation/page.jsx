@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   inspectTicketCodeAsync,
   executeCheckIn,
+  formatTicketCodeForDisplay,
 } from "@/app/lib/officerService";
 import {
   CheckCircle2,
@@ -22,51 +23,93 @@ import {
   Loader2,
   Calendar,
   Info,
-  Search,
+  ArrowLeft,
 } from "lucide-react";
 
+function normalizeUtcIso(rawIso) {
+  if (typeof rawIso !== "string" || !rawIso.trim()) return null;
+  const trimmed = rawIso.trim();
+  return /Z$|[+-]\d{2}:?\d{2}$/.test(trimmed) ? trimmed : `${trimmed}Z`;
+}
+
 function ValidationContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
-  const initialCode = searchParams.get("code") || "";
+  const rawCode = (searchParams.get("code") || "").trim();
   const [lookupVersion, setLookupVersion] = useState(0);
   const requestRef = useRef(0);
   const submittingRef = useRef(false);
-  const [ticketCode, setTicketCode] = useState(initialCode);
   const [checkedInSuccess, setCheckedInSuccess] = useState(false);
-  const [isValidating, setIsValidating] = useState(Boolean(initialCode));
+  const [isValidating, setIsValidating] = useState(Boolean(rawCode));
   const [isSubmittingCheckIn, setIsSubmittingCheckIn] = useState(false);
   const [result, setResult] = useState(null);
 
   useEffect(() => {
+    if (!rawCode) {
+      router.replace("/officer/scan");
+      return undefined;
+    }
+
     const request = ++requestRef.current;
     let active = true;
     const timer = setTimeout(async () => {
       setResult(null);
       setCheckedInSuccess(false);
-      if (!ticketCode.trim()) { setIsValidating(false); return; }
       setIsValidating(true);
-      const response = await inspectTicketCodeAsync(ticketCode);
+      const response = await inspectTicketCodeAsync(rawCode);
       if (!active || request !== requestRef.current) return;
       setResult(response);
       setIsValidating(false);
     }, 0);
-    return () => { active = false; clearTimeout(timer); };
-  }, [ticketCode, lookupVersion]);
 
-  const handleSelectCode = (code) => {
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [rawCode, lookupVersion, router]);
+
+  if (!rawCode) {
+    return (
+      <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900 shadow-xs">
+        <Loader2 className="h-7 w-7 animate-spin text-[#0080f2]" />
+        <p className="mt-3 text-sm font-medium text-slate-800 dark:text-slate-200">
+          Mengalihkan ke Scan &amp; Validasi Tiket...
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Mulai pemeriksaan tiket melalui kamera, upload gambar QR, atau input manual.
+        </p>
+        <Link
+          href="/officer/scan"
+          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#0080f2] px-4 py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
+        >
+          <ScanLine size={14} />
+          <span>Kembali ke Scan Tiket</span>
+        </Link>
+      </div>
+    );
+  }
+
+  const handleRetryValidation = () => {
     if (submittingRef.current) return;
     requestRef.current++;
     setResult(null);
     setIsValidating(true);
     setCheckedInSuccess(false);
-    setTicketCode(code);
     setLookupVersion((value) => value + 1);
   };
 
   const handleConfirmCheckIn = async () => {
-    if (!result?.server_verified || result.status !== "VALID" || !result.ticket || isValidating || submittingRef.current) return;
+    if (
+      !result?.server_verified ||
+      result.status !== "VALID" ||
+      !result.ticket ||
+      isValidating ||
+      submittingRef.current
+    ) {
+      return;
+    }
     submittingRef.current = true;
     setIsSubmittingCheckIn(true);
     const request = requestRef.current;
@@ -75,9 +118,17 @@ function ValidationContent() {
       if (request !== requestRef.current) return;
       if (outcome.success) {
         setCheckedInSuccess(true);
-        setResult((prev) => ({ ...prev, message: outcome.message, ticket: { ...prev.ticket, ...outcome.ticket, status: "used" } }));
+        setResult((prev) => ({
+          ...prev,
+          message: outcome.message,
+          ticket: { ...prev.ticket, ...outcome.ticket, status: "used" },
+        }));
       } else {
-        setResult((prev) => ({ ...prev, ...outcome, ticket: outcome.ticket || prev.ticket }));
+        setResult((prev) => ({
+          ...prev,
+          ...outcome,
+          ticket: outcome.ticket || prev.ticket,
+        }));
       }
     } finally {
       submittingRef.current = false;
@@ -85,16 +136,14 @@ function ValidationContent() {
     }
   };
 
-  const hasCode = Boolean(ticketCode && ticketCode.trim());
-  const status = result?.status || (hasCode ? "MEMERIKSA" : "STANDBY");
+  const status = result?.status || "MEMERIKSA";
   const ticket = result?.ticket;
 
   const isValid = status === "VALID" && result?.server_verified && !isValidating;
   const isUsed = status === "SUDAH DIGUNAKAN";
   const isCancelled = status === "DIBATALKAN";
-
+  const normalizedFirstCheckInAt = normalizeUtcIso(result?.first_checked_in_at);
   const assignedGate = user?.assigned_gate || "Belum dapat diverifikasi";
-  const shiftText = user?.shift || "Belum dapat diverifikasi";
 
   return (
     <div className="w-full max-w-none min-w-0 space-y-6">
@@ -103,15 +152,15 @@ function ValidationContent() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              Hasil Validasi E-Tiket
+              Rincian Validasi &amp; Check-in
             </h1>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Validasi melalui server
+              Terverifikasi server
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-normal">
-            Verifikasi status keaslian dan izin masuk penonton di gate.
+            Periksa detail tiket sebelum mengonfirmasi check-in pengunjung.
           </p>
         </div>
 
@@ -120,68 +169,32 @@ function ValidationContent() {
             href="/officer/scan"
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#0080f2] px-3.5 py-1.5 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
           >
-            <ScanLine size={14} />
-            <span>Scan Baru</span>
+            <ArrowLeft size={14} />
+            <span>Kembali ke Scan</span>
           </Link>
           <Link
             href="/officer/history"
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition"
           >
-            <span>Riwayat Log</span>
+            <span>Riwayat Check-in</span>
           </Link>
         </div>
       </div>
 
-      {/* Multi-Column Workstation Grid: Fills 100% of available width */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-none">
-        {/* Left Column: Hasil Pemeriksaan & Detail Tiket (lg:col-span-7 xl:col-span-8) */}
+        {/* Left Column: Ticket Detail & Check-in Confirmation */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-6 min-w-0">
-          {/* Standby state when no ticket code is loaded */}
-          {!hasCode ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-200/60 bg-blue-50 text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-                <ScanLine size={34} />
-              </div>
-              <div className="mt-4">
-                <span className="inline-block rounded-full px-3.5 py-1 text-xs font-medium uppercase tracking-wider border border-blue-200/60 bg-blue-50 text-[#0080f2] dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-                  SIAP MEMERIKSA TIKET
-                </span>
-              </div>
-              <h2 className="mt-2.5 text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">
-                Menunggu Pemindaian E-Tiket
-              </h2>
-              <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto font-normal">
-                Silakan arahkan kamera pemindai ke QR Code pengunjung melalui menu Scan QR atau masukkan kode tiket penonton pada formulir di sebelah kanan untuk memulai verifikasi keaslian.
-              </p>
-              <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link
-                  href="/officer/scan"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#0080f2] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
-                >
-                  <ScanLine size={16} />
-                  <span>Buka Kamera Scanner</span>
-                </Link>
-                <Link
-                  href="/officer/history"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition"
-                >
-                  <span>Lihat Riwayat Gate</span>
-                </Link>
-              </div>
-            </div>
-          ) : isValidating ? (
-            /* Loading state indicator */
+          {isValidating ? (
             <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900 shadow-xs">
               <Loader2 className="h-7 w-7 animate-spin text-[#0080f2]" />
               <p className="mt-3 text-sm font-medium text-slate-800 dark:text-slate-200">
-                Memverifikasi data tiket ke server...
+                Memuat rincian tiket dari server...
               </p>
               <p className="mt-1 text-xs text-slate-400 font-mono">
-                Kode: {ticketCode}
+                Kode: {formatTicketCodeForDisplay(rawCode, null)}
               </p>
             </div>
           ) : (
-            /* Main Validation Card */
             <div className="rounded-xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs">
               {/* Status Header */}
               <div className="text-center">
@@ -207,7 +220,6 @@ function ValidationContent() {
                   )}
                 </div>
 
-                {/* Status Badge */}
                 <div className="mt-4">
                   <span
                     className={`inline-block rounded-full px-3.5 py-1 text-xs font-medium uppercase tracking-wider border ${
@@ -233,7 +245,7 @@ function ValidationContent() {
                     ? "Peringatan: Tiket Sudah Digunakan"
                     : isCancelled
                     ? "Tiket Dibatalkan — Tidak Berlaku"
-                    : "Pemeriksaan Belum Berhasil"}
+                    : "Tiket Tidak Valid"}
                 </h2>
 
                 <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto font-normal">
@@ -258,17 +270,17 @@ function ValidationContent() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <span className="text-[11px] text-slate-400 block font-normal">
-                        Nama Pemegang:
+                        Event
                       </span>
-                      <span className="font-semibold text-slate-900 dark:text-white text-sm mt-0.5 flex items-center gap-1.5">
-                        <User size={15} className="text-slate-400" />
-                        {ticket.attendee_name || "Pemegang Tiket"}
+                      <span className="font-semibold text-slate-900 dark:text-white mt-0.5 flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Calendar size={14} className="text-slate-400" />
+                        {ticket.event_name || "—"}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[11px] text-slate-400 block font-normal">
-                        Kategori Tiket:
+                        Kategori Tiket
                       </span>
                       <span className="font-semibold text-slate-900 dark:text-white text-sm mt-0.5 flex items-center gap-1.5">
                         <Ticket size={15} className="text-slate-400" />
@@ -278,39 +290,31 @@ function ValidationContent() {
 
                     <div>
                       <span className="text-[11px] text-slate-400 block font-normal">
-                        Nama Event:
+                        Pemilik
                       </span>
-                      <span className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 flex items-center gap-1.5 text-xs sm:text-sm">
-                        <Calendar size={14} className="text-slate-400" />
-                        {ticket.event_name || "—"}
+                      <span className="font-semibold text-slate-900 dark:text-white text-sm mt-0.5 flex items-center gap-1.5">
+                        <User size={15} className="text-slate-400" />
+                        {ticket.attendee_name || "Pemegang Tiket"}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[11px] text-slate-400 block font-normal">
-                        Pintu Masuk (Gate):
+                        Status Tiket
                       </span>
-                      <span className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 flex items-center gap-1.5 text-xs sm:text-sm">
-                        <MapPin size={14} className="text-slate-400" />
-                        Penugasan gate belum dapat diverifikasi
+                      <span className="font-semibold text-slate-900 dark:text-white text-sm mt-0.5 block">
+                        {checkedInSuccess
+                          ? "Sudah Check-in (used)"
+                          : isValid
+                          ? "Valid (Siap Check-in)"
+                          : status}
                       </span>
                     </div>
-
-                    {ticket.seat_section && (
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-normal">
-                          Zona / Tempat Duduk:
-                        </span>
-                        <span className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 block text-xs sm:text-sm">
-                          {ticket.seat_section}
-                        </span>
-                      </div>
-                    )}
 
                     {ticket.booking_code && (
                       <div>
                         <span className="text-[11px] text-slate-400 block font-normal">
-                          Kode Booking:
+                          Kode Booking
                         </span>
                         <span className="font-mono text-xs text-slate-600 dark:text-slate-300 mt-0.5 block">
                           {ticket.booking_code}
@@ -319,27 +323,25 @@ function ValidationContent() {
                     )}
                   </div>
 
-                  {/* Box Keterangan Dibatalkan */}
                   {isCancelled && (
                     <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-100/70 p-3.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 font-normal">
                       <span className="font-medium block">Status Pembatalan:</span>
                       <span className="mt-0.5 block">
                         {ticket.cancelled_reason ||
-                          "Transaksi tiket telah dibatalkan secara resmi (refund). Tiket tidak memiliki izin masuk."}
+                          "Transaksi tiket telah dibatalkan. Tiket tidak memiliki izin masuk."}
                       </span>
                     </div>
                   )}
 
-                  {/* Box Keterangan Sudah Digunakan */}
-                  {isUsed && result?.first_checked_in_at && (
-                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-100 p-3.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 font-normal">
+                  {isUsed && normalizedFirstCheckInAt && (
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 font-normal">
                       <span className="font-medium flex items-center gap-1.5">
                         <Clock size={13} /> Waktu Check-in Sebelumnya:
                       </span>
                       <span className="mt-1 block">
                         Tiket pertama kali masuk pada{" "}
                         <span className="font-semibold">
-                          {new Date(result.first_checked_in_at).toLocaleTimeString(
+                          {new Date(normalizedFirstCheckInAt).toLocaleTimeString(
                             "id-ID",
                             {
                               hour: "2-digit",
@@ -358,15 +360,23 @@ function ValidationContent() {
               {/* Action Buttons */}
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                 {!result?.server_verified && !isValidating && (
-                  <button type="button" onClick={() => handleSelectCode(ticketCode)} disabled={isSubmittingCheckIn} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={handleRetryValidation}
+                    disabled={isSubmittingCheckIn}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200"
+                  >
                     Periksa Ulang Status Tiket
                   </button>
                 )}
+
                 {isValid && !checkedInSuccess && (
                   <button
                     type="button"
                     onClick={handleConfirmCheckIn}
-                    disabled={isSubmittingCheckIn || isValidating || !result?.server_verified}
+                    disabled={
+                      isSubmittingCheckIn || isValidating || !result?.server_verified
+                    }
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#0080f2] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#0070d4] transition shadow-xs disabled:opacity-50"
                   >
                     {isSubmittingCheckIn ? (
@@ -374,7 +384,11 @@ function ValidationContent() {
                     ) : (
                       <FileCheck2 size={16} />
                     )}
-                    <span>{isSubmittingCheckIn ? "Memproses Check-in..." : "Konfirmasi Masuk (Check-in)"}</span>
+                    <span>
+                      {isSubmittingCheckIn
+                        ? "Memproses Check-in..."
+                        : "Konfirmasi Masuk (Check-in)"}
+                    </span>
                   </button>
                 )}
 
@@ -390,111 +404,59 @@ function ValidationContent() {
                   href="/officer/history"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition"
                 >
-                  <span>Lihat Riwayat Gate</span>
+                  <span>Riwayat Check-in</span>
                 </Link>
               </div>
             </div>
           )}
-
-          {/* Backend Integration Note */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 shadow-xs space-y-1.5">
-            <div className="flex items-center gap-2 font-semibold">
-              <CheckCircle2 size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <span>{isValidating ? "Memeriksa server..." : result?.server_verified ? "Respons server diterima" : "Status tiket belum terverifikasi"}</span>
-            </div>
-            <p className="leading-relaxed font-normal">
-              Validasi belum berarti pengunjung sudah check-in. Tunggu konfirmasi CHECK-IN SELESAI dari server sebelum mengizinkan masuk. Penugasan event, gate, shift, dan tempat duduk belum tersedia; ikuti arahan koordinator.
-            </p>
-          </div>
         </div>
 
-        {/* Right Column: Penelusuran Kode Manual, Konteks Gate, & SOP (lg:col-span-5 xl:col-span-4) */}
+        {/* Right Column: Officer Context & Protocol */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-6 min-w-0">
-          {/* Manual Ticket Lookup Card */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800/80">
-              <Search size={15} className="text-[#0080f2]" />
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Pemeriksaan Kode Tiket
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-normal">
-              Masukkan kode tiket atau QR token persis seperti yang tertera:
-            </p>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const code = e.currentTarget.lookupCode.value.trim();
-                if (code) handleSelectCode(code);
-              }}
-              className="space-y-2 pt-1"
-            >
-              <input
-                key={ticketCode}
-                name="lookupCode"
-                disabled={isSubmittingCheckIn}
-                autoCapitalize="none"
-                autoCorrect="off"
-                type="text"
-                placeholder="Masukkan kode tiket (cth: TKT-...)"
-                defaultValue={ticketCode}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-mono text-slate-900 focus:border-[#0080f2] focus:ring-1 focus:ring-[#0080f2] dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-              />
-              <button
-                type="submit"
-                disabled={isSubmittingCheckIn || isValidating}
-                className="w-full rounded-lg bg-[#0080f2] py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition shadow-xs"
-              >
-                Muat Rincian Tiket
-              </button>
-            </form>
-          </div>
-
-          {/* Konteks Posisi Gate Petugas */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 border-b border-slate-100 pb-3 dark:border-slate-800/80">
-              <MapPin size={13} className="text-slate-400" /> Parameter Posisi Penugasan
+              <MapPin size={13} className="text-slate-400" /> Petugas Pemeriksa
             </span>
             <div className="space-y-2 text-xs">
               <p className="flex justify-between">
-                <span className="text-slate-400">Gate Aktif:</span>
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {assignedGate}
-                </span>
-              </p>
-              <p className="flex justify-between">
-                <span className="text-slate-400">Shift Waktu:</span>
-                <span className="font-medium text-slate-900 dark:text-white">
-                  {shiftText}
-                </span>
-              </p>
-              <p className="flex justify-between">
-                <span className="text-slate-400">Petugas Jaga:</span>
+                <span className="text-slate-400">Petugas Jaga</span>
                 <span className="font-medium text-slate-900 dark:text-white">
                   {user?.name || "Petugas Scanner"}
                 </span>
               </p>
+              <p className="flex justify-between">
+                <span className="text-slate-400">Gate Aktif</span>
+                <span className="font-medium text-slate-900 dark:text-white">
+                  {assignedGate}
+                </span>
+              </p>
+              <p className="flex justify-between">
+                <span className="text-slate-400">Verifikasi Server</span>
+                <span className="font-medium text-slate-900 dark:text-white">
+                  {isValidating
+                    ? "Memeriksa..."
+                    : result?.server_verified
+                    ? "Diterima"
+                    : "Belum terverifikasi"}
+                </span>
+              </p>
             </div>
           </div>
 
-          {/* SOP Protokol Status Tiket */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Info size={14} className="text-slate-400" /> Protokol Penanganan Status
+              <Info size={14} className="text-slate-400" /> Protokol Status Tiket
             </span>
             <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-              <p className="flex items-start gap-2">
-                <span className="font-bold text-slate-400">&bull;</span>
-                <span><strong>VALID:</strong> Konfirmasi check-in dan tunggu konfirmasi berhasil sebelum mempersilakan masuk.</span>
+              <p>
+                <strong>VALID:</strong> Konfirmasi masuk lalu tunggu status{" "}
+                <em>CHECK-IN SELESAI</em> sebelum memasang gelang.
               </p>
-              <p className="flex items-start gap-2">
-                <span className="font-bold text-slate-400">&bull;</span>
-                <span><strong>SUDAH DIGUNAKAN:</strong> Tahan penonton, periksa bukti identitas pembeli.</span>
+              <p>
+                <strong>SUDAH DIGUNAKAN:</strong> Tahan pengunjung dan periksa ulang bukti pembelian resmi.
               </p>
-              <p className="flex items-start gap-2">
-                <span className="font-bold text-slate-400">&bull;</span>
-                <span><strong>TIDAK VALID:</strong> Arahkan ke meja Customer Service / Help Desk tiket.</span>
+              <p>
+                <strong>TIDAK VALID:</strong> Arahkan ke meja Help Desk tiket.
               </p>
             </div>
           </div>
@@ -509,7 +471,7 @@ export default function OfficerValidationPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[300px] items-center justify-center text-slate-400 text-sm font-normal">
-          Memuat hasil validasi...
+          Memuat rincian validasi...
         </div>
       }
     >

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -26,7 +26,6 @@ import { deleteAdminAgency, fetchAdminAgencies } from '../../src/api/endpoints';
 import { Agency } from '../../src/types';
 import { Header } from '../../src/components/common/Header';
 import { Input } from '../../src/components/common/Input';
-import { Button } from '../../src/components/common/Button';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { Skeleton } from '../../src/components/common/Skeleton';
 import { Typography } from '../../src/constants/Typography';
@@ -40,26 +39,52 @@ export default function AdminAgenciesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadAgencies = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetchAdminAgencies({
-        search: search.trim() || undefined,
-        page: 1,
-        per_page: 50,
+  useEffect(() => {
+    let ignore = false;
+    fetchAdminAgencies({
+      search: search.trim() || undefined,
+      page: 1,
+      per_page: 50,
+    })
+      .then((res) => {
+        if (!ignore) {
+          setAgencies(res.data?.items || []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAgencies([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
-      setAgencies(res.data?.items || []);
-    } catch {
-      setAgencies([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+
+    return () => {
+      ignore = true;
+    };
   }, [search]);
 
-  useEffect(() => {
-    loadAgencies();
-  }, [loadAgencies]);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAdminAgencies({
+      search: search.trim() || undefined,
+      page: 1,
+      per_page: 50,
+    })
+      .then((res) => {
+        setAgencies(res.data?.items || []);
+      })
+      .catch(() => {
+        setAgencies([]);
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
+  };
 
   const handleDelete = (agency: Agency) => {
     Alert.alert(
@@ -73,7 +98,7 @@ export default function AdminAgenciesScreen() {
           onPress: async () => {
             try {
               await deleteAdminAgency(agency.id);
-              await loadAgencies();
+              setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
             } catch (err: any) {
               Alert.alert('Gagal Menghapus', err?.message || 'Agency masih memiliki event terkait.');
             }
@@ -137,10 +162,7 @@ export default function AdminAgenciesScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadAgencies();
-              }}
+              onRefresh={onRefresh}
               tintColor={brand.primary}
             />
           }

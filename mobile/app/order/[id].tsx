@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Linking,
+  AppState,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -24,61 +25,185 @@ import {
   Phone,
   QrCode,
   RefreshCw,
-  Ticket,
   User,
   XCircle,
 } from 'lucide-react-native';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
-import { cancelBooking, fetchBookingDetail } from '../../src/api/endpoints';
+import { useAuth } from '../../src/context/AuthContext';
+import {
+  cancelBooking,
+  fetchBookingDetail,
+  syncBookingPaymentStatus,
+} from '../../src/api/endpoints';
 import { saveBookingEntry } from '../../src/utils/storage';
 import { BookingDetailResponse, TicketItem } from '../../src/types';
-import { formatRupiah, formatTanggal, formatWaktu } from '../../src/utils/formatters';
+import {
+  formatRupiah,
+  formatTanggal,
+  formatWaktu,
+  getStatusLabel,
+  getTicketDisplayStatus,
+} from '../../src/utils/formatters';
+import {
+  canUserSyncBookingPayment,
+  getOfficialPaymentUrl,
+  getPaymentMethodLabel,
+  openMidtransPaymentBrowser,
+} from '../../src/utils/payment';
 import { Header } from '../../src/components/common/Header';
 import { Badge } from '../../src/components/common/Badge';
 import { Button } from '../../src/components/common/Button';
 import { QRCodeModal } from '../../src/components/ticket/QRCodeModal';
 import { Skeleton } from '../../src/components/common/Skeleton';
 
+type PaymentFeedbackState = {
+  type: 'info' | 'success' | 'error';
+  text: string;
+} | null;
+
 export default function OrderDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fromPayment } = useLocalSearchParams<{
+    id: string;
+    fromPayment?: string;
+  }>();
   const router = useRouter();
   const { colors, brand, isDark } = useAppTheme();
+  const { user, isAuthenticated } = useAuth();
 
   const [detail, setDetail] = useState<BookingDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [paymentFeedback, setPaymentFeedback] =
+    useState<PaymentFeedbackState>(null);
   const [copied, setCopied] = useState(false);
   const [selectedQR, setSelectedQR] = useState<TicketItem | null>(null);
 
-  const loadOrder = useCallback(async () => {
-    if (!id) return;
+  const syncLockRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+
+  const initialFromPaymentFeedback: PaymentFeedbackState = useMemo(() => {
+    if (detail?.booking?.status !== 'pending_payment') {
+      return null;
+    }
+    if (
+      fromPayment === 'opened' ||
+      fromPayment === 'dismissed' ||
+      fromPayment === 'cancelled'
+    ) {
+      return {
+        type: 'info',
+        text: 'Anda kembali dari halaman pembayaran Midtrans. Jika sudah menyelesaikan transaksi, tekan "Periksa Status Pembayaran".',
+      };
+    }
+    if (fromPayment === 'error') {
+      return {
+        type: 'error',
+        text: 'Browser pembayaran tidak dapat dibuka otomatis. Gunakan tombol "Bayar Sekarang (Midtrans Sandbox)" di bawah.',
+      };
+    }
+    if (fromPayment === 'invalid_url') {
+      return {
+        type: 'error',
+        text: 'Tautan pembayaran resmi Midtrans Sandbox belum tersedia atau tidak valid.',
+      };
+    }
+    return null;
+  }, [detail?.booking?.status, fromPayment]);
+
+  const activeFeedback = paymentFeedback ?? initialFromPaymentFeedback;
+
+  const persistBookingFromResponse = useCallback(
+    async (data: BookingDetailResponse) => {
+      const booking = data.booking;
+      const officialUrl = getOfficialPaymentUrl(booking);
+      await saveBookingEntry({
+        booking_code: booking.booking_code,
+        payment_url: officialUrl,
+        recipient_email: booking.recipient_email || booking.buyer_email,
+        event_name: data.event?.name,
+      });
+    },
+    []
+  );
+
+  // Strictly read-only GET detail refresh; never mutates payment status.
+  const refreshOrder = useCallback(async (): Promise<BookingDetailResponse | null> => {
+    if (!id) return null;
     try {
-      setError(null);
       const res = await fetchBookingDetail(id);
       if (res.success && res.data?.booking) {
         setDetail(res.data);
-        await saveBookingEntry({
-          booking_code: res.data.booking.booking_code,
-          payment_url: res.data.booking.payment_url || null,
-          recipient_email:
-            res.data.booking.recipient_email || res.data.booking.buyer_email,
-          event_name: res.data.event?.name,
-        });
+        setError(null);
+        await persistBookingFromResponse(res.data);
+        return res.data;
       }
+      return null;
     } catch (err: any) {
       setError(err?.message || 'Gagal memuat detail pesanan.');
+      return null;
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, [id]);
+  }, [id, persistBookingFromResponse]);
 
   useEffect(() => {
-    loadOrder();
-  }, [loadOrder]);
+    let ignore = false;
+    if (!id) return;
+
+    fetchBookingDetail(id)
+      .then(async (res) => {
+        if (!ignore && res.success && res.data?.booking) {
+          setDetail(res.data);
+          setError(null);
+          await persistBookingFromResponse(res.data);
+        }
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setError(err?.message || 'Gagal memuat detail pesanan.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [id, persistBookingFromResponse]);
+
+  // Read-only GET refresh when returning from Android Chrome Custom Tabs / external browser.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const prevState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (
+        (prevState === 'background' || prevState === 'inactive') &&
+        nextState === 'active' &&
+        detail?.booking?.status === 'pending_payment' &&
+        !syncLockRef.current
+      ) {
+        refreshOrder();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [detail?.booking?.status, refreshOrder]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    refreshOrder();
+  };
 
   const handleCopyCode = async () => {
     if (!detail?.booking?.booking_code) return;
@@ -87,8 +212,32 @@ export default function OrderDetailScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCancelOrder = () => {
+  const performCancel = async () => {
     if (!detail?.booking?.booking_code) return;
+    setCancelling(true);
+    try {
+      await cancelBooking(detail.booking.booking_code);
+      await refreshOrder();
+      setPaymentFeedback({
+        type: 'info',
+        text: 'Pesanan telah dibatalkan dan kuota tiket dikembalikan ke sistem.',
+      });
+    } catch (err: any) {
+      setPaymentFeedback({
+        type: 'error',
+        text: err?.message || 'Gagal membatalkan pesanan.',
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleCancelOrder = () => {
+    if (!detail?.booking?.booking_code || cancelling || syncing) return;
+    if (Platform.OS === 'web') {
+      performCancel();
+      return;
+    }
     Alert.alert(
       'Batalkan Pesanan',
       'Apakah Anda yakin ingin membatalkan pesanan ini? Stok tiket akan dikembalikan ke event.',
@@ -97,29 +246,104 @@ export default function OrderDetailScreen() {
         {
           text: 'Ya, Batalkan',
           style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await cancelBooking(detail.booking.booking_code);
-              await loadOrder();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Gagal membatalkan pesanan.');
-            } finally {
-              setCancelling(false);
-            }
-          },
+          onPress: performCancel,
         },
       ]
     );
   };
 
   const handlePayNow = async () => {
-    const url = detail?.booking?.payment_url;
-    if (!url) return;
+    const officialUrl = getOfficialPaymentUrl(detail?.booking);
+    if (!officialUrl) {
+      setPaymentFeedback({
+        type: 'error',
+        text: 'Tautan pembayaran resmi Midtrans Sandbox tidak valid atau pesanan sudah tidak menunggu pembayaran.',
+      });
+      return;
+    }
+
+    const result = await openMidtransPaymentBrowser(officialUrl);
+    if (result.status === 'error') {
+      setPaymentFeedback({
+        type: 'error',
+        text:
+          result.message ||
+          'Gagal membuka browser pembayaran Midtrans Sandbox.',
+      });
+    } else {
+      setPaymentFeedback({
+        type: 'info',
+        text: 'Halaman pembayaran Midtrans Sandbox dibuka. Setelah selesai membayar, tekan "Periksa Status Pembayaran".',
+      });
+    }
+
+    // Re-fetch read-only GET detail cleanly; never assume closing browser means paid.
+    await refreshOrder();
+  };
+
+  const handleSyncPaymentStatus = async () => {
+    if (!detail?.booking?.booking_code || syncLockRef.current || syncing) {
+      return;
+    }
+
+    syncLockRef.current = true;
+    setSyncing(true);
+    setPaymentFeedback(null);
+
     try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Link Pembayaran', url);
+      await syncBookingPaymentStatus(detail.booking.booking_code);
+      const updated = await refreshOrder();
+      const nextStatus = updated?.booking?.status;
+
+      if (nextStatus === 'paid' || nextStatus === 'lunas') {
+        setPaymentFeedback({
+          type: 'success',
+          text: 'Pembayaran berhasil dikonfirmasi! E-ticket dan QR Gate Anda kini aktif.',
+        });
+      } else if (nextStatus === 'pending_payment') {
+        setPaymentFeedback({
+          type: 'info',
+          text: 'Status pembayaran masih Menunggu Pembayaran di Midtrans. Selesaikan pembayaran terlebih dahulu lalu periksa kembali.',
+        });
+      } else if (nextStatus) {
+        setPaymentFeedback({
+          type: 'error',
+          text: `Status pesanan diperbarui menjadi ${getStatusLabel(nextStatus)}.`,
+        });
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      if (status === 401) {
+        setPaymentFeedback({
+          type: 'error',
+          text: 'Sesi login diperlukan atau telah berakhir. Silakan login kembali untuk memeriksa status pembayaran.',
+        });
+      } else if (status === 403) {
+        setPaymentFeedback({
+          type: 'info',
+          text: 'Status akan diperbarui otomatis melalui sistem pembayaran.',
+        });
+      } else if (status === 502) {
+        setPaymentFeedback({
+          type: 'error',
+          text: 'Gateway pembayaran Midtrans tidak merespons dengan benar (HTTP 502). Silakan coba beberapa saat lagi.',
+        });
+      } else if (status === 504) {
+        setPaymentFeedback({
+          type: 'error',
+          text: 'Waktu pemeriksaan ke layanan pembayaran habis (HTTP 504). Silakan coba kembali.',
+        });
+      } else {
+        setPaymentFeedback({
+          type: 'error',
+          text:
+            err?.message ||
+            'Gagal memeriksa status pembayaran. Silakan coba kembali.',
+        });
+      }
+    } finally {
+      syncLockRef.current = false;
+      setSyncing(false);
     }
   };
 
@@ -159,6 +383,11 @@ export default function OrderDetailScreen() {
   const isPending = booking.status === 'pending_payment';
   const isPaid = booking.status === 'paid' || booking.status === 'lunas';
   const isCancelled = booking.status === 'cancelled' || booking.status === 'dibatalkan';
+  const isExpired = booking.status === 'expired';
+  const isDeniedOrFailed = booking.status === 'denied' || booking.status === 'failed';
+  const isRefunded = booking.status === 'refunded';
+  const officialPaymentUrl = getOfficialPaymentUrl(booking);
+  const canSyncPayment = canUserSyncBookingPayment(booking, user, isAuthenticated);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -169,7 +398,9 @@ export default function OrderDetailScreen() {
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={loadOrder}
+            onPress={onRefresh}
+            accessibilityRole="button"
+            accessibilityLabel="Muat ulang detail pesanan"
             style={[styles.refreshBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
           >
             <RefreshCw size={17} color={colors.text} />
@@ -183,7 +414,7 @@ export default function OrderDetailScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={loadOrder}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
@@ -197,7 +428,7 @@ export default function OrderDetailScreen() {
                 Menunggu Pembayaran
               </Text>
               <Text style={[styles.statusBannerDesc, { color: isDark ? '#FDE68A' : '#78350F' }]}>
-                Harap selesaikan pembayaran sebelum batas waktu berakhir agar reservasi tiket Anda tidak hangus.
+                Harap selesaikan pembayaran melalui Midtrans Sandbox sebelum batas waktu berakhir agar reservasi tiket Anda tidak hangus.
               </Text>
             </View>
           </View>
@@ -231,16 +462,106 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {isExpired && (
+          <View style={[styles.statusBanner, { backgroundColor: isDark ? 'rgba(148,163,184,0.16)' : '#F1F5F9', borderColor: colors.borderStrong }]}>
+            <Clock size={20} color={colors.textMuted} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusBannerTitle, { color: colors.text }]}>
+                Pembayaran Kedaluwarsa
+              </Text>
+              <Text style={[styles.statusBannerDesc, { color: colors.textSecondary }]}>
+                Batas waktu pembayaran telah berakhir. Kuota tiket telah dilepas kembali.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isDeniedOrFailed && (
+          <View style={[styles.statusBanner, { backgroundColor: isDark ? 'rgba(239,68,68,0.18)' : '#FEE2E2', borderColor: '#EF4444' }]}>
+            <XCircle size={20} color="#DC2626" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusBannerTitle, { color: isDark ? '#F87171' : '#991B1B' }]}>
+                Pembayaran {getStatusLabel(booking.status)}
+              </Text>
+              <Text style={[styles.statusBannerDesc, { color: isDark ? '#FECACA' : '#7F1D1D' }]}>
+                Transaksi tidak dapat diselesaikan oleh penyedia pembayaran. Silakan buat pesanan baru jika masih membutuhkan tiket.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isRefunded && (
+          <View style={[styles.statusBanner, { backgroundColor: isDark ? 'rgba(148,163,184,0.16)' : '#F1F5F9', borderColor: colors.borderStrong }]}>
+            <AlertCircle size={20} color={colors.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusBannerTitle, { color: colors.text }]}>
+                Pembayaran Dikembalikan (Refunded)
+              </Text>
+              <Text style={[styles.statusBannerDesc, { color: colors.textSecondary }]}>
+                Dana untuk pesanan ini telah dikembalikan dan tiket tidak lagi berlaku untuk check-in.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {activeFeedback && (
+          <View
+            style={[
+              styles.feedbackBanner,
+              {
+                backgroundColor:
+                  activeFeedback.type === 'success'
+                    ? isDark
+                      ? 'rgba(16,185,129,0.16)'
+                      : '#ECFDF5'
+                    : activeFeedback.type === 'error'
+                    ? isDark
+                      ? 'rgba(239,68,68,0.16)'
+                      : '#FEF2F2'
+                    : isDark
+                    ? 'rgba(6,182,212,0.14)'
+                    : '#ECFEFF',
+                borderColor:
+                  activeFeedback.type === 'success'
+                    ? '#10B981'
+                    : activeFeedback.type === 'error'
+                    ? '#EF4444'
+                    : brand.cyan,
+              },
+            ]}
+          >
+            <AlertCircle
+              size={18}
+              color={
+                activeFeedback.type === 'success'
+                  ? '#10B981'
+                  : activeFeedback.type === 'error'
+                  ? '#EF4444'
+                  : brand.primary
+              }
+            />
+            <Text style={[styles.feedbackText, { color: colors.text }]}>
+              {activeFeedback.text}
+            </Text>
+          </View>
+        )}
+
         {/* Booking Code Card */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardEyebrow, { color: colors.textMuted }]}>KODE BOOKING PESANAN</Text>
-          <View style={styles.codeRow}>
+          <View style={styles.codeHeaderRow}>
+            <Text style={[styles.cardEyebrow, { color: colors.textMuted, marginBottom: 0 }]}>
+              KODE BOOKING PESANAN
+            </Text>
+            <Badge status={booking.status} />
+          </View>
+          <View style={[styles.codeRow, { marginTop: 8 }]}>
             <Text style={[styles.codeText, { color: brand.primary }]}>
               {booking.booking_code}
             </Text>
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleCopyCode}
+              accessibilityRole="button"
               style={[
                 styles.copyBtn,
                 { backgroundColor: copied ? '#10B981' : colors.surfaceElevated, borderColor: colors.border },
@@ -253,15 +574,38 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          {isPending && booking.payment_url && (
+          {isPending && officialPaymentUrl && (
             <Button
-              title="Bayar Sekarang (Midtrans)"
+              title="Bayar Sekarang (Midtrans Sandbox)"
               onPress={handlePayNow}
               variant="gradient"
               icon={<CreditCard size={18} color="#FFFFFF" />}
               size="lg"
+              testID="order-pay-now-btn"
               style={{ marginTop: 14 }}
             />
+          )}
+
+          {isPending && canSyncPayment && (
+            <Button
+              title="Periksa Status Pembayaran"
+              loadingTitle="Memeriksa Status…"
+              onPress={handleSyncPaymentStatus}
+              variant="outline"
+              loading={syncing}
+              disabled={syncing || cancelling}
+              icon={<RefreshCw size={16} color={brand.primary} />}
+              size="md"
+              testID="order-sync-status-btn"
+              style={{ borderColor: brand.primary, marginTop: 10 }}
+              textStyle={{ color: brand.primary }}
+            />
+          )}
+
+          {isPending && !canSyncPayment && (
+            <Text style={[styles.syncHintText, { color: colors.textMuted }]}>
+              Status pesanan akan diperbarui otomatis oleh sistem pembayaran. Login sebagai pemilik pesanan untuk memeriksa status Sandbox secara manual.
+            </Text>
           )}
 
           {isPending && (
@@ -270,6 +614,7 @@ export default function OrderDetailScreen() {
               onPress={handleCancelOrder}
               variant="outline"
               loading={cancelling}
+              disabled={syncing}
               style={{ borderColor: brand.danger, marginTop: 10 }}
               textStyle={{ color: brand.danger }}
             />
@@ -329,41 +674,62 @@ export default function OrderDetailScreen() {
             </Text>
 
             <View style={{ gap: 10, marginTop: 10 }}>
-              {tickets.map((t, idx) => (
-                <View
-                  key={t.id || idx}
-                  style={[styles.ticketPassRow, { backgroundColor: colors.surfaceElevated }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.ticketPassCode, { color: colors.text }]}>
-                      {t.ticket_code}
-                    </Text>
-                    <Text style={[styles.ticketPassStatus, { color: t.status === 'valid' ? '#10B981' : colors.textMuted }]}>
-                      Status: {t.status.toUpperCase()}
-                    </Text>
-                  </View>
+              {tickets.map((t, idx) => {
+                const effectiveStatus = getTicketDisplayStatus(booking.status, t.status);
+                const isPaidAndValid = booking.status === 'paid' && (effectiveStatus === 'valid' || effectiveStatus === 'aktif');
+                const isCancelled = booking.status === 'cancelled' || effectiveStatus === 'cancelled';
+                const statusColor = isPaidAndValid
+                  ? '#10B981'
+                  : isCancelled
+                  ? '#EF4444'
+                  : colors.textMuted;
 
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() =>
-                      setSelectedQR({
-                        ...t,
-                        booking_code: booking.booking_code,
-                        booking_status: booking.status,
-                        event_name: event?.name,
-                        event_date: event?.event_date,
-                        event_time: event?.event_time,
-                        venue: event?.venue,
-                        ticket_type_name: ticket_type?.name,
-                      } as any)
-                    }
-                    style={[styles.qrPassBtn, { backgroundColor: brand.primary }]}
+                return (
+                  <View
+                    key={t.id || idx}
+                    style={[styles.ticketPassRow, { backgroundColor: colors.surfaceElevated }]}
                   >
-                    <QrCode size={16} color="#FFFFFF" />
-                    <Text style={styles.qrPassBtnText}>QR Gate</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={[styles.ticketPassCode, { color: colors.text }]}>
+                        {t.ticket_code}
+                      </Text>
+                      <Text style={[styles.ticketPassStatus, { color: statusColor }]}>
+                        Status: {effectiveStatus.toUpperCase()}
+                      </Text>
+                    </View>
+
+                    {isPaidAndValid ? (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          setSelectedQR({
+                            ...t,
+                            status: effectiveStatus as any,
+                            booking_code: booking.booking_code,
+                            booking_status: booking.status,
+                            event_name: event?.name,
+                            event_date: event?.event_date,
+                            event_time: event?.event_time,
+                            venue: event?.venue,
+                            ticket_type_name: ticket_type?.name,
+                          } as any)
+                        }
+                        style={[styles.qrPassBtn, { backgroundColor: brand.primary }]}
+                      >
+                        <QrCode size={16} color="#FFFFFF" />
+                        <Text style={styles.qrPassBtnText}>QR Gate</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={[styles.qrPassBtnDisabled, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <QrCode size={16} color={colors.textMuted} />
+                        <Text style={[styles.qrPassBtnDisabledText, { color: colors.textMuted }]}>
+                          QR Nonaktif
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -371,6 +737,16 @@ export default function OrderDetailScreen() {
         {/* Payment Summary */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardEyebrow, { color: brand.primary }]}>RINCIAN PEMBAYARAN</Text>
+          {booking.payment_method ? (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Metode Pembayaran
+              </Text>
+              <Text style={[styles.summaryVal, { color: colors.text }]}>
+                {getPaymentMethodLabel(booking.payment_method)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
               {ticket_type?.name || 'Tiket'} × {booking.quantity}
@@ -447,6 +823,32 @@ const styles = StyleSheet.create({
   statusBannerDesc: {
     fontSize: 12,
     lineHeight: 17,
+  },
+  feedbackBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  feedbackText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  codeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  syncHintText: {
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginTop: 10,
   },
   card: {
     borderRadius: 24,
@@ -545,6 +947,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11.5,
     fontWeight: '800',
+  },
+  qrPassBtnDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  qrPassBtnDisabledText: {
+    fontSize: 11.5,
+    fontWeight: '700',
   },
   summaryRow: {
     flexDirection: 'row',

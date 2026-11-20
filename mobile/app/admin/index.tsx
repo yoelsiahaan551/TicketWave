@@ -13,11 +13,9 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
-  LayoutDashboard,
   Plus,
   RefreshCw,
   Settings,
-  Sparkles,
   Ticket,
   Users,
 } from 'lucide-react-native';
@@ -28,7 +26,7 @@ import { EventItem } from '../../src/types';
 import { Header } from '../../src/components/common/Header';
 import { Badge } from '../../src/components/common/Badge';
 import { Button } from '../../src/components/common/Button';
-import { EventCardSkeleton, Skeleton } from '../../src/components/common/Skeleton';
+import { Skeleton } from '../../src/components/common/Skeleton';
 import { Typography } from '../../src/constants/Typography';
 
 export default function AdminDashboardScreen() {
@@ -38,61 +36,110 @@ export default function AdminDashboardScreen() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalAgencies, setTotalAgencies] = useState(0);
+  const [onSaleCount, setOnSaleCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
   const [totalSold, setTotalSold] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      setError(null);
-      const [eventsRes, agenciesRes] = await Promise.all([
-        fetchAdminEvents({ page: 1, per_page: 20 }),
-        fetchAdminAgencies({ page: 1, per_page: 20 }),
-      ]);
+  const fetchDashboardData = useCallback(async () => {
+    const [eventsRes, agenciesRes, saleRes, draftRes] = await Promise.all([
+      fetchAdminEvents({ page: 1, per_page: 20 }),
+      fetchAdminAgencies({ page: 1, per_page: 20 }),
+      fetchAdminEvents({ status: 'on_sale', per_page: 1 }),
+      fetchAdminEvents({ status: 'draft', per_page: 1 }),
+    ]);
 
-      const items = eventsRes.data?.items || [];
-      setTotalEvents(eventsRes.data?.total_items ?? items.length);
-      setTotalAgencies(agenciesRes.data?.total_items ?? (agenciesRes.data?.items || []).length);
+    const items = eventsRes.data?.items || [];
+    const tEvents = eventsRes.data?.total_items ?? items.length;
+    const tAgencies = agenciesRes.data?.total_items ?? (agenciesRes.data?.items || []).length;
+    const sCount = saleRes.data?.total_items ?? items.filter((e) => e.status === 'on_sale').length;
+    const dCount = draftRes.data?.total_items ?? items.filter((e) => e.status === 'draft').length;
 
-      const detailList = await Promise.all(
-        items.slice(0, 8).map((ev) =>
-          fetchAdminEventDetail(ev.id)
-            .then((r) => r.data)
-            .catch(() => ev)
-        )
-      );
+    const detailList = await Promise.all(
+      items.slice(0, 8).map((ev) =>
+        fetchAdminEventDetail(ev.id)
+          .then((r) => r.data)
+          .catch(() => ev)
+      )
+    );
 
-      let soldSum = 0;
-      const enriched = items.map((ev) => {
-        const det = detailList.find((d) => d?.id === ev.id) || ev;
-        const tts = det?.ticket_types || [];
-        const evSold = tts.reduce((acc, t) => acc + Number(t.sold_count || 0), 0);
-        const evQuota = tts.reduce((acc, t) => acc + Number(t.quota || 0), 0);
-        soldSum += evSold;
-        return {
-          ...ev,
-          sold_count: evSold,
-          total_quota: evQuota,
-          ticket_types_count: tts.length,
-        };
-      });
+    let soldSum = 0;
+    const enriched = items.map((ev) => {
+      const det = detailList.find((d) => d?.id === ev.id) || ev;
+      const tts = det?.ticket_types || [];
+      const evSold = tts.reduce((acc, t) => acc + Number(t.sold_count || 0), 0);
+      const evQuota = tts.reduce((acc, t) => acc + Number(t.quota || 0), 0);
+      soldSum += evSold;
+      return {
+        ...ev,
+        sold_count: evSold,
+        total_quota: evQuota,
+        ticket_types_count: tts.length,
+      };
+    });
 
-      setEvents(enriched);
-      setTotalSold(soldSum);
-    } catch (err: any) {
-      setError(err?.message || 'Gagal memuat data dashboard admin.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    return {
+      items: enriched,
+      totalEvents: tEvents,
+      totalAgencies: tAgencies,
+      onSaleCount: sCount,
+      draftCount: dCount,
+      totalSold: soldSum,
+    };
   }, []);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    let ignore = false;
+    fetchDashboardData()
+      .then((data) => {
+        if (!ignore) {
+          setEvents(data.items);
+          setTotalEvents(data.totalEvents);
+          setTotalAgencies(data.totalAgencies);
+          setOnSaleCount(data.onSaleCount);
+          setDraftCount(data.draftCount);
+          setTotalSold(data.totalSold);
+          setError(null);
+        }
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setError(err?.message || 'Gagal memuat data dashboard admin.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
 
-  const onSaleCount = events.filter((e) => e.status === 'on_sale').length;
+    return () => {
+      ignore = true;
+    };
+  }, [fetchDashboardData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchDashboardData()
+      .then((data) => {
+        setEvents(data.items);
+        setTotalEvents(data.totalEvents);
+        setTotalAgencies(data.totalAgencies);
+        setOnSaleCount(data.onSaleCount);
+        setDraftCount(data.draftCount);
+        setTotalSold(data.totalSold);
+        setError(null);
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Gagal memuat data dashboard admin.');
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -102,10 +149,7 @@ export default function AdminDashboardScreen() {
         subtitle="Pusat kendali operasional TicketWave"
         rightAction={
           <TouchableOpacity
-            onPress={() => {
-              setRefreshing(true);
-              loadDashboard();
-            }}
+            onPress={onRefresh}
             style={[styles.iconBtn, { backgroundColor: colors.surfaceElevated }]}
           >
             <RefreshCw size={18} color={colors.text} />
@@ -119,10 +163,7 @@ export default function AdminDashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              loadDashboard();
-            }}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
@@ -175,7 +216,7 @@ export default function AdminDashboardScreen() {
               {totalAgencies}
             </Text>
             <Text style={[Typography.caption, styles.statLabel, { color: colors.text }]}>
-              Agency Promotor
+              Total Agency
             </Text>
             <Text style={[Typography.caption, styles.statSubtext, { color: colors.textMuted }]}>
               Penyelenggara resmi
@@ -187,14 +228,42 @@ export default function AdminDashboardScreen() {
               <Ticket size={20} color={brand.warning} />
             </View>
             <Text style={[Typography.price, styles.statNum, { color: brand.warning }]}>
-              {totalSold}
+              {draftCount}
             </Text>
             <Text style={[Typography.caption, styles.statLabel, { color: colors.text }]}>
-              Tiket Terjual
+              Event Draft
             </Text>
             <Text style={[Typography.caption, styles.statSubtext, { color: colors.textMuted }]}>
-              Akumulasi sold_count
+              Belum diterbitkan
             </Text>
+          </View>
+        </View>
+
+        {/* Ringkasan Penjualan & Keuangan */}
+        <View style={[styles.salesSummaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[Typography.h4, { color: colors.text, marginBottom: 8 }]}>
+            Metrik Penjualan & Keuangan
+          </Text>
+          <View style={styles.salesRow}>
+            <View style={styles.salesItem}>
+              <Text style={[Typography.caption, { color: colors.textSecondary }]}>Tiket Terjual</Text>
+              <Text style={[Typography.h3, { color: brand.primary, marginTop: 2 }]}>
+                {totalSold > 0 ? totalSold : '—'}
+              </Text>
+              <Text style={[Typography.caption, { color: colors.textMuted, fontSize: 11 }]}>
+                Akumulasi sold_count detail event
+              </Text>
+            </View>
+            <View style={[styles.salesDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.salesItem}>
+              <Text style={[Typography.caption, { color: colors.textSecondary }]}>Total Omzet</Text>
+              <Text style={[Typography.h3, { color: colors.textMuted, marginTop: 2 }]}>
+                —
+              </Text>
+              <Text style={[Typography.caption, { color: colors.textMuted, fontSize: 11 }]}>
+                Tidak tersedia (BLOCKED-BY-BACKEND)
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -470,5 +539,25 @@ const styles = StyleSheet.create({
   },
   evMeta: {
     marginTop: 2,
+  },
+  salesSummaryCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  salesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  salesItem: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  salesDivider: {
+    width: 1,
+    height: 40,
+    marginHorizontal: 12,
   },
 });

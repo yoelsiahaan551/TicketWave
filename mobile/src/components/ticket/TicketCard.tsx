@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CalendarDays, Clock, MapPin, QrCode } from 'lucide-react-native';
+import { CalendarDays, MapPin, QrCode } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { TicketItem } from '../../types';
 import { formatTanggalSingkat, formatWaktu } from '../../utils/formatters';
@@ -19,10 +19,10 @@ interface TicketCardProps {
 }
 
 export function TicketCard({ ticket, onShowQR }: TicketCardProps) {
-  const { colors, brand, isDark } = useAppTheme();
+  const { colors, brand } = useAppTheme();
 
-  const isValid = ticket.status === 'valid' || ticket.status === 'aktif';
-  const isUsed = ticket.status === 'used' || ticket.status === 'checked_in';
+  const isPaid = ticket.booking_status === 'paid' || !ticket.booking_status;
+  const isValid = isPaid && (ticket.status === 'valid' || ticket.status === 'aktif');
 
   return (
     <View
@@ -88,11 +88,27 @@ export function TicketCard({ ticket, onShowQR }: TicketCardProps) {
         {onShowQR && (
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => onShowQR(ticket)}
-            style={[styles.qrBtn, { backgroundColor: brand.primary }]}
+            disabled={!isValid}
+            onPress={() => isValid && onShowQR(ticket)}
+            style={[
+              styles.qrBtn,
+              {
+                backgroundColor: isValid ? brand.primary : colors.surfaceElevated,
+                borderWidth: isValid ? 0 : 1,
+                borderColor: colors.border,
+                opacity: isValid ? 1 : 0.6,
+              },
+            ]}
           >
-            <QrCode size={16} color="#FFFFFF" />
-            <Text style={styles.qrBtnText}>Lihat QR</Text>
+            <QrCode size={16} color={isValid ? '#FFFFFF' : colors.textMuted} />
+            <Text
+              style={[
+                styles.qrBtnText,
+                { color: isValid ? '#FFFFFF' : colors.textMuted },
+              ]}
+            >
+              {isValid ? 'Lihat QR' : 'QR Nonaktif'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>

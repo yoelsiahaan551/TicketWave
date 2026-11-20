@@ -44,20 +44,6 @@ export function saveBookingEntry({ booking_code }) {
   }
 }
 
-export function removeSavedBookingCode(booking_code) {
-  if (typeof window === "undefined" || !booking_code) return;
-  const code = String(booking_code).trim().toUpperCase();
-  try {
-    const existing = getSavedBookingEntries();
-    const next = existing.filter((item) => item.booking_code !== code);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch (err) {
-    console.error("[BookingStorage] Failed to remove booking code:", err);
-  }
-}
-
-export const removeBookingEntry = removeSavedBookingCode;
-
 export function getSavedPaymentUrl() {
   // Payment URLs must come from a fresh server response.
   return null;

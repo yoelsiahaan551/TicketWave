@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -70,9 +69,13 @@ export default function AdminCreateAgencyScreen() {
       const agencyId = res.data?.id;
       if (agencyId && logoUri) {
         try {
+          console.log(`[Upload] Uploading logo for agency ${agencyId}...`);
           await uploadAgencyLogo(agencyId, logoUri);
-        } catch {
-          // Logo upload is non-blocking
+          console.log('[Upload] Logo upload succeeded!');
+        } catch (uploadErr: any) {
+          console.warn('[Upload Blocker ISSUE-03] Logo upload failed (BLOCKED-BY-BACKEND):', uploadErr?.message);
+          setError(`Upload Logo Gagal (BLOCKED-BY-BACKEND ISSUE-03 Cloudinary HTTP 500): ${uploadErr?.message}`);
+          return;
         }
       }
 

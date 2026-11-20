@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import AuthLayout from "@/app/components/auth/AuthLayout";
 import api from "@/app/lib/api";
+import { resolvePostLoginRedirect } from "@/app/lib/authRedirect";
 
 // ============================================================================
 // LOGO
@@ -380,39 +381,14 @@ export default function LoginPage() {
       const result = await login(targetEmail, password, rememberMe);
 
       if (result.success) {
-        // Role-based redirection:
-        // - admin -> Admin Area (/admin)
-        // - officer -> Officer Portal (/officer)
-        // - user -> User Area (/user/home)
+        // Role-based redirection with strict per-role ?next= boundary validation
         const role = result.user?.role;
-        let target = "/user/home";
-        if (role === "admin") {
-          target = "/admin";
-        } else if (role === "officer") {
-          target = "/officer";
-        } else {
-          target = "/user/home";
-        }
-
+        let rawNext = "";
         if (typeof window !== "undefined") {
           const params = new URLSearchParams(window.location.search);
-          const redirectParam = params.get("redirect");
-          if (redirectParam && redirectParam.startsWith("/")) {
-            if (role === "admin") {
-              if (!redirectParam.startsWith("/officer") && !redirectParam.startsWith("/user")) {
-                target = redirectParam;
-              }
-            } else if (role === "officer") {
-              if (redirectParam.startsWith("/officer")) {
-                target = redirectParam;
-              }
-            } else {
-              if (!redirectParam.startsWith("/admin") && !redirectParam.startsWith("/officer")) {
-                target = redirectParam;
-              }
-            }
-          }
+          rawNext = params.get("next") || params.get("redirect") || "";
         }
+        const target = resolvePostLoginRedirect(role, rawNext);
 
         // Tampilkan overlay transisi sebentar sebelum pindah halaman
         setRedirecting(true);

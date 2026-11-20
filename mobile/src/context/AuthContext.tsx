@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { isInvalidTokenError } from '../api/client';
+import { api, isInvalidTokenError } from '../api/client';
 import { fetchMeApi, loginApi, registerApi } from '../api/endpoints';
 import { User } from '../types';
 import {
@@ -80,8 +80,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshUser();
-  }, [refreshUser]);
+    let isMounted = true;
+    (async () => {
+      await api.init();
+      const token = await getStoredAccessToken();
+      const refresh = await getStoredRefreshToken();
+
+      if (!token && !refresh) {
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetchMeApi();
+        if (response && response.success && response.data) {
+          const userData = (response.data as any).user || response.data;
+          await setStoredUser(userData);
+          if (isMounted) {
+            setUser(userData);
+            setLoading(false);
+          }
+          return;
+        }
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+        }
+      } catch (error: any) {
+        const status = error?.status;
+        if (status === 401 || (status === 422 && isInvalidTokenError(error))) {
+          await clearAuthStorage();
+          if (isMounted) {
+            setUser(null);
+          }
+        } else {
+          const cached = await getStoredUser();
+          if (!cached && isMounted) {
+            setUser(null);
+          }
+        }
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const login = async (email: string, password: string): Promise<AuthResult> => {
     try {
@@ -104,9 +154,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         success: false,
         status: error?.status,
         message:
-          error?.status === 500
-            ? `Server Error (HTTP 500): ${error?.message || 'Gagal menerbitkan token JWT di backend.'}`
-            : error?.message || 'Login gagal. Periksa koneksi ke backend.',
+          error?.status === 0
+            ? 'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.'
+            : error?.status >= 500
+            ? 'Layanan TicketWave sedang mengalami gangguan. Silakan coba lagi.'
+            : error?.message || 'Tidak dapat terhubung ke layanan TicketWave. Periksa koneksi Anda dan coba lagi.',
       };
     }
   };

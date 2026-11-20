@@ -51,7 +51,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) {
-      router.replace("/login?redirect=/user/profile");
+      router.replace("/login?next=/user/profile");
     }
   }, [authLoading, isAuthenticated, user, router]);
 

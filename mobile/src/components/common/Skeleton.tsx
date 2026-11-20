@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
+import { PublicThemePalette } from '../../constants/Colors';
 import { useAppTheme } from '../../context/ThemeContext';
 
 interface SkeletonProps {
   width?: number | string;
   height?: number | string;
   borderRadius?: number;
+  forcePublicTheme?: boolean;
   style?: ViewStyle;
 }
 
@@ -13,10 +15,12 @@ export function Skeleton({
   width = '100%',
   height = 20,
   borderRadius = 8,
+  forcePublicTheme = false,
   style,
 }: SkeletonProps) {
-  const { isDark } = useAppTheme();
-  const opacity = useRef(new Animated.Value(0.35)).current;
+  const appTheme = useAppTheme();
+  const isDark = forcePublicTheme ? true : appTheme.isDark;
+  const opacity = useMemo(() => new Animated.Value(0.35), []);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -56,8 +60,15 @@ export function Skeleton({
 /**
  * Event Card Skeleton matching TicketWave-FE UpcomingConcert.jsx
  */
-export function EventCardSkeleton({ compact = false }: { compact?: boolean }) {
-  const { colors, isDark } = useAppTheme();
+export function EventCardSkeleton({
+  compact = false,
+  forcePublicTheme = false,
+}: {
+  compact?: boolean;
+  forcePublicTheme?: boolean;
+}) {
+  const appTheme = useAppTheme();
+  const colors = forcePublicTheme ? PublicThemePalette : appTheme.colors;
 
   return (
     <View
@@ -74,14 +85,15 @@ export function EventCardSkeleton({ compact = false }: { compact?: boolean }) {
         width="100%"
         height={compact ? 130 : 180}
         borderRadius={16}
+        forcePublicTheme={forcePublicTheme}
         style={{ marginBottom: 14 }}
       />
-      <Skeleton width="40%" height={12} borderRadius={6} style={{ marginBottom: 8 }} />
-      <Skeleton width="85%" height={18} borderRadius={6} style={{ marginBottom: 12 }} />
-      <Skeleton width="60%" height={14} borderRadius={6} style={{ marginBottom: 14 }} />
+      <Skeleton width="40%" height={12} borderRadius={6} forcePublicTheme={forcePublicTheme} style={{ marginBottom: 8 }} />
+      <Skeleton width="85%" height={18} borderRadius={6} forcePublicTheme={forcePublicTheme} style={{ marginBottom: 12 }} />
+      <Skeleton width="60%" height={14} borderRadius={6} forcePublicTheme={forcePublicTheme} style={{ marginBottom: 14 }} />
       <View style={styles.footerRow}>
-        <Skeleton width="45%" height={18} borderRadius={6} />
-        <Skeleton width="30%" height={28} borderRadius={12} />
+        <Skeleton width="45%" height={18} borderRadius={6} forcePublicTheme={forcePublicTheme} />
+        <Skeleton width="30%" height={28} borderRadius={12} forcePublicTheme={forcePublicTheme} />
       </View>
     </View>
   );

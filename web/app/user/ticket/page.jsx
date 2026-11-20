@@ -9,13 +9,11 @@ import {
   QrCode,
   Search,
   RefreshCw,
-  X,
-  CheckCircle2,
-  Clock,
   ArrowRight,
 } from "lucide-react";
 import api from "@/app/lib/api";
 import TicketQr from "@/app/components/user/TicketQr";
+import TicketQrModal from "@/app/components/user/TicketQrModal";
 import { getTicketDisplayStatus } from "@/app/lib/payment";
 import {
   fetchAllSavedBookings,
@@ -34,7 +32,7 @@ const statusLabels = {
   pending_payment: "Menunggu Pembayaran",
   expired: "Kedaluwarsa",
   valid: "Valid / Aktif",
-  used: "Sudah Check-In",
+  used: "Sudah Digunakan",
   cancelled: "Dibatalkan",
 };
 
@@ -217,7 +215,7 @@ export default function TicketPage() {
             },
             {
               id: "used",
-              label: `Sudah Check-In (${tickets.filter((t) => t.status === "used").length})`,
+              label: `Sudah Digunakan (${tickets.filter((t) => t.status === "used").length})`,
             },
             {
               id: "cancelled",
@@ -266,9 +264,25 @@ export default function TicketPage() {
                   <span className="mb-2.5 rounded-full bg-white/20 px-2.5 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur">
                     Booking: {ticket.booking_code}
                   </span>
-                  <div className="rounded-xl bg-white p-4 shadow-xs">
-                    <QrCode className="h-24 w-24 text-slate-900" />
-                  </div>
+                  {ticket.booking_status === "paid" &&
+                  ticket.status === "valid" &&
+                  ticket.qr_token ? (
+                    <TicketQr
+                      value={ticket.qr_token}
+                      ticketCode={ticket.ticket_code}
+                      size={160}
+                      showCode={false}
+                    />
+                  ) : (
+                    <div className="flex h-40 w-40 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-4 text-center text-slate-600 shadow-xs">
+                      <QrCode className="h-10 w-10 text-slate-400" />
+                      <span className="mt-2 text-[11px] font-semibold text-slate-700">
+                        {ticket.status === "used"
+                          ? "Sudah Digunakan"
+                          : "QR Belum Aktif"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Ticket Info */}
@@ -323,14 +337,33 @@ export default function TicketPage() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTicket(ticket)}
-                    disabled={ticket.booking_status !== "paid" || ticket.status !== "valid"}
-                    className="mt-auto w-full rounded-xl bg-[#0080f2] hover:bg-[#0070d4] px-3.5 py-2 text-xs font-medium text-white shadow-xs transition"
-                  >
-                    Tampilkan QR &amp; Detail
-                  </button>
+                  {ticket.booking_status === "paid" && ticket.status === "valid" ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTicket(ticket)}
+                      className="mt-auto w-full rounded-xl bg-[#0080f2] px-3.5 py-2 text-xs font-medium text-white shadow-xs transition hover:bg-[#0070d4]"
+                    >
+                      Tampilkan QR &amp; Detail
+                    </button>
+                  ) : ticket.booking_status === "paid" && ticket.status === "used" ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTicket(ticket)}
+                      className="mt-auto w-full rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
+                      Lihat Detail (Sudah Digunakan)
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="mt-auto w-full cursor-not-allowed rounded-xl bg-slate-200 px-3.5 py-2 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                    >
+                      {ticket.status === "pending_payment"
+                        ? "QR Belum Aktif"
+                        : "Tiket Tidak Berlaku"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -359,96 +392,13 @@ export default function TicketPage() {
           </div>
         )}
 
-        {/* QR Code Detail Modal */}
-        {!loading && selectedTicket && selectedTicket.booking_status === "paid" && selectedTicket.status === "valid" && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
-            onClick={() => setSelectedTicket(null)}
-          >
-            <div
-              className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between bg-slate-900 px-5 py-3.5 text-white dark:bg-slate-800">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    TicketWave Official Pass
-                  </p>
-                  <h3 className="text-sm font-semibold">{selectedTicket.ticket_code}</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTicket(null)}
-                  className="rounded-lg bg-white/10 p-1.5 text-white hover:bg-white/20 transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="p-5">
-                <div className="mx-auto flex w-fit flex-col items-center rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                  <TicketQr value={selectedTicket.qr_token || selectedTicket.ticket_code} />
-                </div>
-
-                <div className="mt-4 space-y-2 text-xs">
-                  <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
-                    <span className="text-slate-500">Event</span>
-                    <span className="font-medium text-slate-900 dark:text-white">
-                      {selectedTicket.event_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
-                    <span className="text-slate-500">Kategori Tiket</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      {selectedTicket.ticket_type_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
-                    <span className="text-slate-500">Pemegang / Pembeli</span>
-                    <span className="font-medium text-slate-900 dark:text-white">
-                      {selectedTicket.buyer_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
-                    <span className="text-slate-500">Status Tiket</span>
-                    <span className="inline-flex items-center gap-1 font-medium text-slate-900 dark:text-white">
-                      {selectedTicket.status === "valid" ? (
-                        <CheckCircle2 size={13} className="text-slate-700 dark:text-slate-300" />
-                      ) : (
-                        <Clock size={13} className="text-slate-500 dark:text-slate-400" />
-                      )}
-                      {statusLabels[selectedTicket.status] || selectedTicket.status}
-                    </span>
-                  </div>
-                  {selectedTicket.checked_in_at && (
-                    <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
-                      <span className="text-slate-500">Waktu Check-In</span>
-                      <span className="font-medium text-slate-900 dark:text-white">
-                        {new Date(selectedTicket.checked_in_at).toLocaleString("id-ID")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 flex gap-2">
-                  <Link
-                    href={`/user/pesanan/${selectedTicket.booking_code}`}
-                    className="flex-1 rounded-xl border border-slate-200/80 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Lihat Pesanan
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTicket(null)}
-                    className="flex-1 rounded-xl bg-[#0080f2] py-2 text-xs font-medium text-white hover:bg-[#0070d4] transition-colors shadow-xs"
-                  >
-                    Tutup
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <TicketQrModal
+          isOpen={Boolean(!loading && selectedTicket)}
+          tickets={selectedTicket ? [selectedTicket] : []}
+          initialTicketCode={selectedTicket?.ticket_code}
+          showOrderLink
+          onClose={() => setSelectedTicket(null)}
+        />
       </div>
     </div>
   );

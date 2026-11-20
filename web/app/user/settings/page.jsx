@@ -29,7 +29,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) {
-      router.replace("/login?redirect=/user/settings");
+      router.replace("/login?next=/user/settings");
     }
   }, [authLoading, isAuthenticated, user, router]);
 
@@ -125,7 +125,7 @@ export default function SettingsPage() {
           </p>
           <div className="mt-6 flex justify-center gap-2.5">
             <Link
-              href="/login?redirect=/user/settings"
+              href="/login?next=/user/settings"
               className="rounded-xl bg-[#0080f2] px-4 py-2 text-xs font-medium text-white shadow-xs hover:bg-[#0070d4] transition-colors"
             >
               Masuk Sekarang

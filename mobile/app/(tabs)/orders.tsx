@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,15 +10,15 @@ import {
   View,
 } from 'react-native';
 import { Receipt, RefreshCw, Search } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useAppTheme } from '../../src/context/ThemeContext';
 import { cancelBooking, fetchBookingDetail } from '../../src/api/endpoints';
 import {
   getSavedBookingEntries,
-  removeSavedBookingEntry,
   saveBookingEntry,
 } from '../../src/utils/storage';
+import { openMidtransPaymentBrowser } from '../../src/utils/payment';
 import { BookingDetailResponse } from '../../src/types';
 import { Header } from '../../src/components/common/Header';
 import { Input } from '../../src/components/common/Input';
@@ -38,7 +37,7 @@ const ORDER_FILTERS = [
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const { colors, brand, isDark } = useAppTheme();
+  const { colors, brand } = useAppTheme();
 
   const [bookings, setBookings] = useState<BookingDetailResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,51 +48,89 @@ export default function OrdersScreen() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const loadOrders = useCallback(async () => {
-    try {
-      const entries = await getSavedBookingEntries();
-      if (entries.length === 0) {
-        setBookings([]);
-        return;
-      }
-
-      const settled = await Promise.allSettled(
-        entries.map(async (entry): Promise<BookingDetailResponse> => {
-          const res = await fetchBookingDetail(entry.booking_code);
-          if (res.success && res.data?.booking) {
-            return {
-              ...res.data,
-              booking: {
-                ...res.data.booking,
-                payment_url: res.data.booking.payment_url || entry.payment_url || null,
-                recipient_email: res.data.booking.recipient_email || entry.recipient_email || null,
-              },
-            };
-          }
-          throw new Error('Not found');
-        })
-      );
-
-      const valid = settled
-        .filter((r): r is PromiseFulfilledResult<BookingDetailResponse> => r.status === 'fulfilled')
-        .map((r) => r.value);
-
-      setBookings(valid);
-    } catch {
-      setBookings([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const fetchOrders = useCallback(async () => {
+    const entries = await getSavedBookingEntries();
+    if (entries.length === 0) {
+      return [];
     }
+
+    const settled = await Promise.allSettled(
+      entries.map(async (entry): Promise<BookingDetailResponse> => {
+        const res = await fetchBookingDetail(entry.booking_code);
+        if (res.success && res.data?.booking) {
+          return {
+            ...res.data,
+            booking: {
+              ...res.data.booking,
+              payment_url: res.data.booking.payment_url || entry.payment_url || null,
+              recipient_email: res.data.booking.recipient_email || entry.recipient_email || null,
+            },
+          };
+        }
+        throw new Error('Not found');
+      })
+    );
+
+    return settled
+      .filter((r): r is PromiseFulfilledResult<BookingDetailResponse> => r.status === 'fulfilled')
+      .map((r) => r.value);
   }, []);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    let ignore = false;
+    fetchOrders()
+      .then((items) => {
+        if (!ignore) {
+          setBookings(items);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setBookings([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [fetchOrders]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      fetchOrders()
+        .then((items) => {
+          if (active) {
+            setBookings(items);
+          }
+        })
+        .catch(() => {
+          // keep current visible list on transient error
+        });
+      return () => {
+        active = false;
+      };
+    }, [fetchOrders])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadOrders();
+    fetchOrders()
+      .then((items) => {
+        setBookings(items);
+      })
+      .catch(() => {
+        setBookings([]);
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
   };
 
   const handleLookup = async () => {
@@ -116,7 +153,7 @@ export default function OrdersScreen() {
           type: 'success',
           text: `Pesanan ${res.data.booking.booking_code} berhasil ditemukan.`,
         });
-        await loadOrders();
+        onRefresh();
       }
     } catch (err: any) {
       setLookupMessage({
@@ -145,7 +182,7 @@ export default function OrdersScreen() {
                 type: 'success',
                 text: `Pesanan ${bookingCode} berhasil dibatalkan.`,
               });
-              await loadOrders();
+              onRefresh();
             } catch (err: any) {
               setLookupMessage({
                 type: 'error',
@@ -159,11 +196,13 @@ export default function OrdersScreen() {
   };
 
   const handlePay = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Info Pembayaran', `Link pembayaran: ${url}`);
+    const result = await openMidtransPaymentBrowser(url);
+    if (result.status === 'error' && result.message) {
+      setLookupMessage({ type: 'error', text: result.message });
     }
+    fetchOrders()
+      .then((items) => setBookings(items))
+      .catch(() => {});
   };
 
   const filteredBookings = bookings.filter((item) =>
